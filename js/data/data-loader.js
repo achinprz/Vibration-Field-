@@ -32,6 +32,7 @@ async function fetchEquipmentMaster() {
     if (data && data.length > 0) {
       MASTER = data.map(eq => ({
         name: eq.name, unit: eq.unit, area: eq.area, dept: eq.dept,
+        category: eq.category || 'OTHER',   // fed to the AI prediction API — see supabase/equipment_category.sql
         rpm: eq.rpm, frequency: eq.frequency,
         points: eq.points ? (Array.isArray(eq.points) ? eq.points : JSON.parse(eq.points)) : [],
         params: eq.params ? (Array.isArray(eq.params) ? eq.params : JSON.parse(eq.params)) : [],

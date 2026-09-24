@@ -4,6 +4,10 @@
 function openAdminPanel() {
   if (AUTH.role !== 'admin') return;
   renderUserTable();
+  try {
+    const u = document.getElementById('ai-service-url'); if (u) u.value = localStorage.getItem(AI_URL_KEY) || '';
+    const k = document.getElementById('ai-service-key'); if (k) k.value = localStorage.getItem(AI_KEY_KEY) || '';
+  } catch(e) {}
   document.getElementById('admin-panel-modal').classList.add('open');
 }
 function closeAdminPanel() {

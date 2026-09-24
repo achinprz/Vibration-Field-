@@ -112,11 +112,24 @@ const OfflineQ = (function() {
       remarks:          payload.remarks || '',
       responsible_dept: payload.responsibleDept || '',
       is_decoupled:     payload.isDecoupled ? true : false,
+      label_source:     payload.labelSource || 'HUMAN',
       created_on:       now,
       updated_on:       now
     }));
-    const { error } = await _supabase.from('readings').insert(supaRows);
+    let { error } = await _supabase.from('readings').insert(supaRows);
+    if (error && _isMissingLabelSourceCol(error)) {
+      // supabase/readings_label_source.sql hasn't been run yet — retry without the column
+      // rather than failing every save.
+      supaRows.forEach(r => delete r.label_source);
+      ({ error } = await _supabase.from('readings').insert(supaRows));
+    }
     if (error) throw new Error(error.message);
+  }
+
+  // -- Detect "column does not exist" (Postgres 42703) for label_source specifically --
+  function _isMissingLabelSourceCol(error) {
+    const msg = (error && error.message || '') + ' ' + (error && error.details || '');
+    return error && (error.code === '42703' || /label_source/i.test(msg)) && /column|does not exist/i.test(msg);
   }
 
   // -- Sync all pending --
@@ -208,10 +221,15 @@ const OfflineQ = (function() {
       remarks:          payload.remarks || '',
       responsible_dept: payload.responsibleDept || '',
       is_decoupled:     payload.isDecoupled ? true : false,
+      label_source:     payload.labelSource || 'HUMAN',
       created_on:       now,
       updated_on:       now
     }));
-    const { error: insertErr } = await _supabase.from('readings').insert(supaRows);
+    let { error: insertErr } = await _supabase.from('readings').insert(supaRows);
+    if (insertErr && _isMissingLabelSourceCol(insertErr)) {
+      supaRows.forEach(r => delete r.label_source);
+      ({ error: insertErr } = await _supabase.from('readings').insert(supaRows));
+    }
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save & Export'; }
     if (insertErr) {
       console.error('Supabase insert error:', insertErr);

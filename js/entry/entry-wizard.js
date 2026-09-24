@@ -27,6 +27,7 @@ function filterEntryList() {
 
 function selectEquip(e) {
   entryEquip=e; entryReadings={}; entryRecs=[];
+  window._aiAcceptedForSession = false;   // selecting equipment is not accepting a suggestion
   document.getElementById('s2-eq-name').textContent=e.name;
   // Show per-equipment vibration limits
   const limEl = document.getElementById('s2-vib-limits');
@@ -239,6 +240,8 @@ function buildRecsStep() {
   });
   const os=worstSev(allSevs);
   document.getElementById('s3-sev-preview').innerHTML=`Overall vibration status: ${badgeHtml(os)}`;
+  const aiBox = document.getElementById('wizard-ai-box');
+  if (aiBox) { aiBox.style.display='none'; aiBox.innerHTML=''; }
   renderRecItems();
 }
 

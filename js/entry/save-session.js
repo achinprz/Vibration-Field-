@@ -93,12 +93,15 @@ async function saveSession() {
   if(saveBtn) { saveBtn.disabled=true; saveBtn.textContent='⏳ Saving...'; }
   showSavingOverlay('💾 Saving reading for ' + (e && e.name ? e.name : 'equipment') + '…');
 
+  const labelSource = window._aiAcceptedForSession ? 'AI_ACCEPTED' : 'HUMAN';
+
   const payload = {
     action: 'saveReport',
     reportId, date, username: AUTH.username, inspector, unit:e.unit, area:e.area,
     equipment:e.name, rpm:e.rpm||'', frequency:e.frequency||'',
     recommendation: recsStr, remarks: extra, responsibleDept,
     isDecoupled: isDecoupled,
+    labelSource,
     readings
   };
 
@@ -108,7 +111,7 @@ async function saveSession() {
     hideSavingOverlay();
   }
 
-  entryEquip=null; entryReadings={}; entryRecs=[];
+  entryEquip=null; entryReadings={}; entryRecs=[]; window._aiAcceptedForSession = false;
   goStep(1);
 }
 

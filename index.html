@@ -211,6 +211,10 @@
       <div class="card-body">
         <div style="font-size:15px;font-weight:700" id="s3-eq-name"></div>
         <div id="s3-sev-preview" style="margin-top:6px"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-sm" id="wizard-ai-btn" onclick="queryAIForWizard()" style="background:#059669;color:#fff;border:none">🤖 Get AI Suggestion</button>
+        </div>
+        <div id="wizard-ai-box" style="display:none;margin-top:8px"></div>
       </div>
     </div>
     <div class="rec-section">
@@ -561,6 +565,25 @@
           <code style="display:block;margin-top:6px;padding:8px;background:#FFF3CD;border-radius:4px;font-size:10px;white-space:pre-wrap;user-select:all">ALTER TABLE readings ADD COLUMN IF NOT EXISTS is_decoupled BOOLEAN DEFAULT false;</code>
         </div>
       </div>
+
+      <!-- AI PREDICTION SERVICE SETTINGS -->
+      <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:8px">🤖 AI Prediction Service</div>
+        <div style="font-size:11px;color:#047857;margin-bottom:10px">URL + key for the cloud severity/recommendation model (see <code>cloud/DEPLOY_GUIDE.md</code> in the migration package). Stored in this browser only — saved here, every field engineer's device needs it set once too, or you can hardcode <code>AI_DEFAULT_URL</code>/<code>AI_DEFAULT_KEY</code> in <code>js/ai/ai-predict.js</code> for all devices at once.</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+          <label style="font-size:11px;font-weight:600;color:#374151">AI SERVICE URL</label>
+          <input type="text" id="ai-service-url" placeholder="https://vibemon-predict.onrender.com" style="padding:7px 10px;border:1px solid #A7F3D0;border-radius:6px;font-size:12px;background:#fff;color:var(--text)">
+          <label style="font-size:11px;font-weight:600;color:#374151">API KEY</label>
+          <input type="text" id="ai-service-key" placeholder="X-API-Key value" style="padding:7px 10px;border:1px solid #A7F3D0;border-radius:6px;font-size:12px;background:#fff;color:var(--text)">
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveAIServiceConfig()">💾 Save Config</button>
+          <button class="btn btn-sm" onclick="testAIServiceConnection()">🔌 Test Connection</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="clearAIServiceConfig()">✕ Clear</button>
+        </div>
+        <div id="ai-service-result"></div>
+      </div>
+
       <div style="font-size:13px;font-weight:700;margin-bottom:10px">Create New Engineer Account</div>
       <div class="form-grid" style="margin-bottom:10px">
         <div class="fg">
@@ -648,6 +671,7 @@
 <script src="js/core/tabs-filters.js?v=20260922"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
 <script src="js/entry/entry-wizard.js?v=20260922"></script>
+<script src="js/ai/ai-predict.js?v=20260924"></script>
 <script src="js/offline/offline-queue.js?v=20260922"></script>
 <script src="js/entry/save-session.js?v=20260922"></script>
 <script src="js/history/history.js?v=20260922"></script>
