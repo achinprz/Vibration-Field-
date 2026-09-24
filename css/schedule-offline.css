@@ -1,0 +1,61 @@
+/* Schedule row states, missed-reading badges, offline mode, view toggle */
+
+/* ── v27 NEW: Clickable schedule rows ── */
+.ds-equip-tbl tbody tr[onclick], table tbody tr[onclick] {
+  cursor: pointer;
+  transition: filter .12s;
+}
+.ds-equip-tbl tbody tr[onclick]:hover, table tbody tr[onclick]:hover {
+  filter: brightness(0.94);
+}
+/* Row color overrides for schedule status - Feature 8 */
+tr.row-today { background: #FEF3C7 !important; }
+tr.row-overdue { background: #FEE2E2 !important; }
+tr.row-done { background: #D5F5E3 !important; }
+tr.row-future { background: #EFF6FF !important; }
+/* Missed readings status badge */
+.mr-badge-ok { background:#D5F5E3;color:#1E8449; }
+.mr-badge-overdue { background:#FFEDD5;color:#EA580C; }
+.mr-badge-critical { background:#FEE2E2;color:#991B1B; }
+
+/* OFFLINE PILL */
+#vm-offline-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:.2s}
+#vm-offline-pill.pill-off{background:#FEF3C7;color:#92400E;border:1px solid #F59E0B}
+#vm-offline-pill.pill-pend{background:#DBEAFE;color:#1D4E8A;border:1px solid #93C5FD;animation:vm-blink 1.4s step-start infinite}
+#vm-offline-pill.pill-synced{background:#D5F5E3;color:#1E8449;border:1px solid #6EE7B7}
+#vm-offline-pill.pill-fail{background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5}
+/* Offline mode: hide history/dashboard/schedule tabs — entry only */
+.requires-online{} /* visible by default */
+body.offline-mode .requires-online{display:none !important;}
+#vm-offline-banner{display:none;position:fixed;top:52px;left:0;right:0;z-index:150;background:#92400E;color:#FEF3C7;font-size:12px;font-weight:600;text-align:center;padding:6px 12px;letter-spacing:.2px;border-bottom:2px solid #F59E0B;}
+body.offline-mode #vm-offline-banner{display:block;}
+@keyframes vm-blink{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes vm-spin{to{transform:rotate(360deg)}}
+#vm-saving-overlay{
+  display:none; position:fixed; inset:0; z-index:99999;
+  background:rgba(15,23,42,.55); backdrop-filter:blur(2px);
+  align-items:center; justify-content:center; flex-direction:column;
+  touch-action:none;
+}
+#vm-saving-overlay.active{display:flex}
+#vm-saving-overlay .vm-spin-box{
+  background:#fff; border-radius:16px; padding:28px 36px;
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35); max-width:80vw;
+}
+#vm-saving-overlay .vm-spinner{
+  width:44px; height:44px; border-radius:50%;
+  border:4px solid #E2E8F0; border-top-color:#1E8449;
+  animation:vm-spin .8s linear infinite;
+}
+#vm-saving-overlay .vm-saving-text{
+  font-size:14px; font-weight:700; color:#1E293B; text-align:center;
+}
+#vm-saving-overlay .vm-saving-sub{
+  font-size:12px; color:#64748B; text-align:center; margin-top:-6px;
+}
+/* View toggle floating control */
+.view-toggle{position:fixed;right:14px;bottom:14px;z-index:100;display:flex;background:var(--surface);border:1px solid var(--border2);border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.15);padding:3px;gap:2px}
+.view-toggle button{border:none;background:none;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px}
+.view-toggle button.active{background:var(--blue);color:#fff}
+@media(max-width:600px){html[data-view="mobile"] .view-toggle{bottom:64px}}

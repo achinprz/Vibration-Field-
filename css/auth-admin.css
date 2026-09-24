@@ -1,0 +1,65 @@
+/* Login screen, role badges, admin panel, edit report, template builder */
+
+/* GOOGLE SHEETS SECTION */
+.gs-step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px}
+.gs-step h3{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--blue)}
+.gs-step p,.gs-step li{font-size:12px;color:var(--muted);margin-bottom:4px;line-height:1.6}
+.gs-step ol{padding-left:18px}
+pre{background:#1e1e2e;color:#cdd6f4;padding:10px 12px;border-radius:var(--radius);font-size:11px;overflow-x:auto;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:260px}
+
+
+/* LOGIN SCREEN */
+.login-screen{display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0C3878 0%,#1D4E8A 60%,#2563EB 100%);z-index:999;align-items:center;justify-content:center;}
+.login-screen.open{display:flex;}
+.login-box{background:#fff;border-radius:16px;padding:36px 32px;width:min(96vw,380px);box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.login-logo{text-align:center;margin-bottom:24px;}
+.login-logo h1{font-size:22px;font-weight:800;color:var(--blue);margin-bottom:4px;}
+.login-logo p{font-size:12px;color:var(--muted);}
+.login-field{margin-bottom:14px;}
+.login-field label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;}
+.login-field input{width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-size:14px;}
+.login-field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,138,.1);}
+.login-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;}
+.login-btn:hover{background:#17407a;}
+.login-err{background:#FEE2E2;color:#991B1B;border-radius:6px;padding:8px 12px;font-size:12px;margin-top:10px;display:none;}
+.login-err.show{display:block;}
+/* ROLE BADGES */
+.role-badge{padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;}
+.role-admin{background:#EDE9FE;color:#5B21B6;}
+.role-editor{background:#DBEAFE;color:#1D4E8A;}
+.role-viewer{background:#F1F5F9;color:#475569;}
+/* Role visibility helpers */
+.requires-editor{display:none !important;}
+body.role-editor .requires-editor, body.role-admin .requires-editor{display:inline-block !important;}
+body.role-editor button.requires-editor, body.role-admin button.requires-editor{display:inline-block !important;}
+body.role-editor div.requires-editor, body.role-admin div.requires-editor{display:block !important;}
+
+.requires-admin{display:none !important;}
+body.role-admin .requires-admin{display:inline-block !important;}
+body.role-admin button.requires-admin{display:inline-block !important;}
+body.role-admin div.requires-admin{display:block !important;}
+/* ADMIN PANEL */
+.admin-panel-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;}
+.admin-panel-modal.open{display:flex;}
+.admin-panel-box{background:#fff;border-radius:12px;width:min(96vw,600px);max-height:90vh;overflow-y:auto;}
+/* EDIT REPORT MODAL */
+.edit-report-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;align-items:center;justify-content:center;}
+.edit-report-modal.open{display:flex;}
+.edit-report-box{background:#fff;border-radius:12px;width:min(96vw,720px);max-height:92vh;overflow-y:auto;}
+/* EXCEL UPLOAD ZONE */
+.excel-bulk-zone{border:2px dashed #22C55E;border-radius:12px;padding:18px;text-align:center;cursor:pointer;background:#F0FDF4;margin-bottom:12px;}
+.excel-bulk-zone:hover{background:#DCFCE7;}
+.excel-bulk-zone input{display:none;}
+/* NAV user info */
+.nav-role-info{font-size:11px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+.nav-logout-btn{padding:3px 8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap;}
+.nav-logout-btn:hover{background:rgba(255,255,255,.25);}
+.nav-login-btn{padding:5px 12px;background:#fff;color:var(--blue);border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+
+
+/* TEMPLATE BUILDER */
+.tb-row-selected{background:#EFF6FF !important;}
+.tb-row-selected td{color:var(--blue-text);}
+#tb-equip-body tr:hover{background:#F0F9FF;cursor:pointer;}
+#bulk-action-btns .excel-bulk-zone{cursor:pointer;}
+@media(max-width:600px){#bulk-action-btns{grid-template-columns:1fr;}}

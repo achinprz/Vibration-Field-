@@ -1,0 +1,15 @@
+/* Reset and theme variables (:root) */
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f5f7;--surface:#fff;--border:#e2e4e8;--border2:#cdd0d6;
+  --text:#1a1d23;--muted:#6b7280;--hint:#9ca3af;
+  --blue:#1D4E8A;--blue-light:#E6F1FB;--blue-text:#0C447C;
+  --green:#1E8449;--green-light:#D5F5E3;
+  --amber:#92400E;--amber-light:#FEF3C7;
+  --orange:#9A3412;--orange-light:#FFEDD5;
+  --red:#991B1B;--red-light:#FEE2E2;
+  --radius:8px;--radius-lg:12px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.app{display:flex;flex-direction:column;min-height:100vh}

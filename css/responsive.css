@@ -1,0 +1,201 @@
+/* Mobile layout, bottom tab bar, manual view-mode overrides */
+
+/* RESPONSIVE */
+@media(max-width:900px){.form-grid.g3{grid-template-columns:1fr 1fr}}
+
+/* ── MOBILE LAYOUT ── */
+@media(max-width:600px){
+  /* Nav: compact top bar — overflow:visible so logout never clips */
+  .nav{flex-direction:row;align-items:center;padding:0 6px;min-height:48px;flex-wrap:nowrap;position:sticky;top:0;z-index:50;gap:4px;overflow:visible}
+  .nav-brand{font-size:13px;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .nav-brand span{display:none}
+  .nav-credits{display:none !important}
+  .nav-tabs{display:none} /* replaced by bottom tab bar */
+  .nav-user{display:none}
+  /* role-info sits on the right, never shrinks below its content */
+  .nav-role-info{gap:3px;font-size:10px;flex-shrink:0;flex-wrap:nowrap;margin-left:4px;overflow:visible}
+  .nav-role-info #nav-username-label,
+  .nav-role-info #nav-role-badge,
+  .nav-role-info #nav-display-name{display:none}
+  /* Keep Admin/Users btn, theme btn, logout hidden on small screens — moved to bottom nav */
+  .nav-role-info #nav-admin-btn{display:none !important}
+  .nav-role-info #nav-logout-btn{display:none !important}
+  .nav-role-info #nav-login-btn{display:none !important}
+  .nav-role-info .theme-toggle-btn{display:none !important}
+
+  /* Bottom tab bar */
+  .mobile-bottom-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;
+    background:var(--blue);box-shadow:0 -2px 10px rgba(0,0,0,.18);
+    border-top:1px solid rgba(255,255,255,.15);
+    padding-bottom:env(safe-area-inset-bottom,0)
+  }
+  .mobile-tab{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;padding:7px 2px 9px;border:none;background:none;cursor:pointer;
+    color:rgba(255,255,255,.65);font-size:9px;font-weight:500;transition:.15s;min-width:0
+  }
+  .mobile-tab .tab-icon{font-size:18px;line-height:1}
+  .mobile-tab.active{color:#fff;background:rgba(255,255,255,.18);border-top:2px solid #fff}
+
+  /* Screen padding with bottom-nav clearance */
+  .screen{padding:10px 10px 80px}
+
+  /* Cards */
+  .card{margin-bottom:10px;border-radius:10px}
+  .card-body{padding:10px 12px}
+  .card-head{padding:8px 12px}
+
+  /* Filter bar: 2-column grid on mobile */
+  .filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+  .filter-bar select,.filter-bar input[type=date],.filter-bar input[type=text]{flex:none;width:100%;min-width:0}
+  .filter-bar .btn{grid-column:span 1}
+  .filter-bar .btn-primary{grid-column:span 2}
+  .filter-bar-full{grid-column:span 2 !important}
+
+  /* Forms */
+  .form-grid{grid-template-columns:1fr}
+  .form-grid.g3{grid-template-columns:1fr 1fr}
+
+  /* KPIs: 3-column on mobile */
+  .kpi-grid{grid-template-columns:repeat(3,1fr);gap:7px}
+  .kpi{padding:10px 8px}
+  .kpi-val{font-size:20px}
+  .kpi-lbl{font-size:10px}
+
+  /* Point cards */
+  .pt-grid{grid-template-columns:1fr}
+
+  /* Step bar: horizontal scroll, natural width — no overlap */
+  .steps{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;scrollbar-width:none}
+  .steps::-webkit-scrollbar{display:none}
+  .step-btn{flex:0 0 auto;min-width:0;width:auto;font-size:11px;padding:9px 12px;white-space:nowrap}
+
+  /* Dashboard 2-col → 1-col */
+  #dash-2col{grid-template-columns:1fr !important}
+
+  /* Table: tighter on small screen */
+  .param-row{grid-template-columns:60px 1fr 36px}
+  thead th{font-size:10px;padding:6px 7px}
+  tbody td{font-size:11px;padding:5px 7px}
+
+  /* Modals full-width */
+  .modal{width:98vw !important}
+  .wa-modal-box{width:98vw;padding:16px}
+  .login-box{padding:24px 18px}
+
+  /* Bulk action buttons */
+  #bulk-action-btns{grid-template-columns:1fr !important}
+  #bulk-action-btns .btn{white-space:normal;line-height:1.3;font-size:13px}
+
+  /* Prevent body horizontal overflow on mobile */
+  html,body{overflow-x:hidden;max-width:100vw}
+  .app{max-width:100vw;overflow-x:hidden}
+  .card{max-width:100%}
+  .tbl-wrap{max-width:100%;width:100%;overflow-x:auto}
+  img,svg{max-width:100%}
+
+  /* Float view-toggle above the bottom tab bar so it never overlaps */
+  .view-toggle{bottom:72px !important;right:10px;padding:2px}
+  .view-toggle button{padding:5px 9px;font-size:10px}
+
+  /* Allow long text in primary buttons to wrap */
+  .btn-primary,.btn-green,.btn{white-space:normal}
+
+  /* Google Sheets connection step: stack input + buttons cleanly */
+  .gs-step{padding:12px}
+  .gs-step h3{font-size:12px}
+  .gs-step p,.gs-step li{font-size:11px}
+  .gs-step > div[style*="display:flex"]{flex-direction:column;gap:6px !important}
+  #gs-url{width:100% !important;min-width:0 !important;font-size:11px !important;
+    text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+  .gs-step .btn{width:100%;text-align:center;font-size:12px;padding:9px 10px}
+  #gs-result{font-size:11px;word-break:break-word}
+  #gs-result input{max-width:100%;font-size:10px}
+  pre,code{max-width:100%;overflow-x:auto;font-size:10px;white-space:pre-wrap;word-break:break-all}
+
+  /* Mobile equipment tables: convert wide rows into readable cards */
+  .mobile-stack-table{display:block !important;width:100% !important;min-width:0 !important;max-width:100% !important;border-collapse:separate;table-layout:fixed}
+  .mobile-stack-table thead{display:none !important}
+  .mobile-stack-table tbody{display:grid !important;width:100% !important;gap:8px;padding:8px;background:#f8fafc}
+  .mobile-stack-table tbody tr{display:grid !important;width:100% !important;grid-template-columns:1fr;gap:7px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .mobile-stack-table tbody td{display:flex !important;width:100% !important;align-items:center;justify-content:flex-start;gap:8px;border:0;padding:0;max-width:none !important;min-width:0;white-space:normal !important;overflow:visible !important;text-overflow:clip;font-size:11px;line-height:1.35;color:var(--blue-text);word-break:break-word}
+  .mobile-stack-table tbody td::before{content:attr(data-label);flex:0 0 auto;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
+  .mobile-stack-table tbody td:nth-child(3),
+  .overdue-mobile-table tbody td:nth-child(1){grid-column:1/-1;display:block;font-size:13px;font-weight:700;color:var(--blue-text);margin-bottom:2px}
+  .mobile-stack-table tbody td:nth-child(3)::before,
+  .overdue-mobile-table tbody td:nth-child(1)::before{display:none}
+  .mobile-stack-table .badge{white-space:normal;text-align:center;line-height:1.25}
+}
+@media(min-width:601px){
+  .mobile-bottom-nav{display:none}
+  .mobile-tab{display:none}
+}
+
+/* ── VIEW MODE OVERRIDES (manual toggle) ── */
+/* Force mobile look at any viewport */
+html[data-view="mobile"] body{max-width:430px;margin:0 auto;box-shadow:0 0 24px rgba(0,0,0,.08);min-height:100vh;background:var(--bg)}
+html[data-view="mobile"] .nav{flex-direction:row;align-items:center;padding:0 10px;min-height:48px;flex-wrap:nowrap;position:sticky;top:0;z-index:50}
+html[data-view="mobile"] .nav-brand span{display:none}
+html[data-view="mobile"] .nav-brand{font-size:15px}
+html[data-view="mobile"] .nav-credits{display:none !important}
+html[data-view="mobile"] .nav-tabs{display:none}
+html[data-view="mobile"] .nav-user{display:none}
+html[data-view="mobile"] .nav-role-info{gap:3px;font-size:10px;flex-shrink:0;flex-wrap:nowrap;margin-left:4px;overflow:visible}
+html[data-view="mobile"] .nav-role-info #nav-username-label,
+html[data-view="mobile"] .nav-role-info #nav-role-badge,
+html[data-view="mobile"] .nav-role-info #nav-display-name{display:none}
+html[data-view="mobile"] .nav-role-info #nav-admin-btn{display:none !important}
+html[data-view="mobile"] .nav-role-info .nav-logout-btn{display:none}
+html[data-view="mobile"] .nav-role-info #nav-logout-btn{display:none}
+html[data-view="mobile"] .nav-role-info .nav-login-btn{padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+html[data-view="mobile"] .nav-role-info .theme-toggle-btn{display:none !important}
+html[data-view="mobile"] .steps{overflow-x:auto;scrollbar-width:none}
+html[data-view="mobile"] .steps::-webkit-scrollbar{display:none}
+html[data-view="mobile"] .step-btn{flex:0 0 auto;min-width:0;width:auto;font-size:11px;padding:9px 12px;white-space:nowrap}
+html[data-view="mobile"] .screen{padding:10px 10px 72px}
+html[data-view="mobile"] .card{margin-bottom:10px;border-radius:10px}
+html[data-view="mobile"] .card-body{padding:10px 12px}
+html[data-view="mobile"] .card-head{padding:8px 12px}
+html[data-view="mobile"] .filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+html[data-view="mobile"] .filter-bar .btn-primary{grid-column:span 2}
+html[data-view="mobile"] .form-grid{grid-template-columns:1fr}
+html[data-view="mobile"] .form-grid.g3{grid-template-columns:1fr 1fr}
+html[data-view="mobile"] .kpi-grid{grid-template-columns:repeat(3,1fr);gap:7px}
+html[data-view="mobile"] .kpi{padding:10px 8px}
+html[data-view="mobile"] .kpi-val{font-size:20px}
+html[data-view="mobile"] .kpi-lbl{font-size:10px}
+html[data-view="mobile"] .pt-grid{grid-template-columns:1fr}
+html[data-view="mobile"] #dash-2col{grid-template-columns:1fr !important}
+html[data-view="mobile"] .modal{width:98vw !important;max-width:420px}
+html[data-view="mobile"] #bulk-action-btns{grid-template-columns:1fr !important}
+html[data-view="mobile"] .mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;z-index:60;background:var(--blue);box-shadow:0 -2px 10px rgba(0,0,0,.18);border-top:1px solid rgba(255,255,255,.15)}
+html[data-view="mobile"] .mobile-tab{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 2px 9px;border:none;background:none;cursor:pointer;color:rgba(255,255,255,.65);font-size:9px;font-weight:500}
+html[data-view="mobile"] .mobile-tab .tab-icon{font-size:18px;line-height:1}
+html[data-view="mobile"] .mobile-tab.active{color:#fff;background:rgba(255,255,255,.18);border-top:2px solid #fff}
+html[data-view="mobile"] .mobile-stack-table{display:block !important;width:100% !important;min-width:0 !important;max-width:100% !important;border-collapse:separate;table-layout:fixed}
+html[data-view="mobile"] .mobile-stack-table thead{display:none !important}
+html[data-view="mobile"] .mobile-stack-table tbody{display:grid !important;width:100% !important;gap:8px;padding:8px;background:#f8fafc}
+html[data-view="mobile"] .mobile-stack-table tbody tr{display:grid !important;width:100% !important;grid-template-columns:1fr;gap:7px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+html[data-view="mobile"] .mobile-stack-table tbody td{display:flex !important;width:100% !important;align-items:center;justify-content:flex-start;gap:8px;border:0;padding:0;max-width:none !important;min-width:0;white-space:normal !important;overflow:visible !important;text-overflow:clip;font-size:11px;line-height:1.35;color:var(--blue-text);word-break:break-word}
+html[data-view="mobile"] .mobile-stack-table tbody td::before{content:attr(data-label);flex:0 0 auto;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
+html[data-view="mobile"] .mobile-stack-table tbody td:nth-child(3),
+html[data-view="mobile"] .overdue-mobile-table tbody td:nth-child(1){grid-column:1/-1;display:block;font-size:13px;font-weight:700;color:var(--blue-text);margin-bottom:2px}
+html[data-view="mobile"] .mobile-stack-table tbody td:nth-child(3)::before,
+html[data-view="mobile"] .overdue-mobile-table tbody td:nth-child(1)::before{display:none}
+html[data-view="mobile"] .mobile-stack-table .badge{white-space:normal;text-align:center;line-height:1.25}
+
+/* Force desktop look even on small viewport */
+html[data-view="desktop"] .mobile-bottom-nav,
+html[data-view="desktop"] .mobile-tab{display:none !important}
+html[data-view="desktop"] .nav-tabs{display:flex !important}
+html[data-view="desktop"] .nav-brand span{display:inline !important}
+html[data-view="desktop"] .screen{padding:14px 16px}
+html[data-view="desktop"] .filter-bar{display:flex}
+html[data-view="desktop"] body{min-width:1024px;overflow-x:auto}
+
+/* Desktop polish: wider container & richer spacing */
+@media(min-width:1200px){
+  html:not([data-view="mobile"]) .screen{max-width:1400px;margin:0 auto;padding:18px 28px}
+  html:not([data-view="mobile"]) .kpi-grid{grid-template-columns:repeat(6,1fr)}
+}

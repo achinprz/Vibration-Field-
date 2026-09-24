@@ -1,0 +1,33 @@
+/* Schedule Manager (admin) */
+
+.sm-box{width:min(96vw,1000px);max-height:92vh;overflow-y:auto}
+.sm-note{background:var(--blue-light);color:var(--blue-text);border:1px solid #93C5FD;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px}
+.sm-msg{border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px;word-break:break-word}
+.sm-msg.ok{background:var(--green-light);color:var(--green)}
+.sm-msg.err{background:var(--red-light);color:var(--red)}
+.sm-msg.info{background:var(--amber-light);color:var(--amber)}
+.sm-row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:10px 0}
+.sm-row label{font-size:12.5px;display:flex;align-items:center;gap:6px}
+.sm-row select,.sm-row input[type=search]{padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12.5px}
+.sm-row input[type=search]{min-width:220px;flex:1}
+.sm-sub{font-size:11.5px;color:var(--muted)}
+.sm-flag{color:var(--red)}
+.sm-modes{display:flex;flex-direction:column;gap:6px;margin:8px 0;font-size:12.5px}
+.sm-modes label{display:flex;gap:8px;align-items:flex-start;line-height:1.35;cursor:pointer}
+.sm-tblwrap{max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+.sm-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.sm-tbl th,.sm-tbl td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+.sm-tbl th{position:sticky;top:0;background:var(--bg-card-header,#f8fafc);font-size:11.5px;color:var(--text-muted,var(--muted));z-index:1}
+.sm-tbl tr.sub td{font-size:12px;color:var(--muted)}
+.sm-tbl tr.chg td{background:rgba(59,130,246,.12)}
+.sm-tbl td select{max-width:100%;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px}
+.sm-tw{border:0;background:transparent;cursor:pointer;color:var(--muted);padding:0 6px}
+.sm-prev{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:12px}
+.sm-h{font-weight:700;font-size:13px;margin-bottom:8px}
+.sm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:8px}
+.sm-tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.sm-tile .l{font-size:11px;color:var(--muted)}
+.sm-tile .b{font-size:19px;font-weight:700;margin-top:2px}
+.sm-tile .s{font-size:11px;color:var(--muted)}
+.sm-chgs{display:flex;flex-wrap:wrap;gap:4px 6px;max-height:110px;overflow:auto}
+.sm-chgs span{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:1px 8px}

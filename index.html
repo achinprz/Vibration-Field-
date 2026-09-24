@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeMon — Field Engineer App (Supabase)</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
+<script src="js/boot/datetime.js?v=20260922"></script>
+<script src="js/boot/theme.js?v=20260922"></script>
+
+<link rel="stylesheet" href="css/base.css?v=20260922">
+<link rel="stylesheet" href="css/layout.css?v=20260922">
+<link rel="stylesheet" href="css/components.css?v=20260922">
+<link rel="stylesheet" href="css/auth-admin.css?v=20260922">
+<link rel="stylesheet" href="css/responsive.css?v=20260922">
+<link rel="stylesheet" href="css/schedule-offline.css?v=20260922">
+<link rel="stylesheet" href="css/theme.css?v=20260922">
+<link rel="stylesheet" href="css/daily-schedule.css?v=20260924">
+<link rel="stylesheet" href="css/autocomplete.css?v=20260922">
+<link rel="stylesheet" href="css/schedule-manager.css?v=20260922">
+<script type="module" src="js/boot/webview-bridge.js?v=20260922"></script>
+</head>
+<body>
+<div id="vm-saving-overlay">
+  <div class="vm-spin-box">
+    <div class="vm-spinner"></div>
+    <div class="vm-saving-text" id="vm-saving-text">💾 Saving reading…</div>
+    <div class="vm-saving-sub">Please wait — do not close or tap again</div>
+  </div>
+</div>
+
+<div class="app">
+
+
+
+
+<nav class="nav">
+  <div class="nav-brand">
+    ⚡ VibeMon <span>Field Engineer App</span>
+    <span class="nav-credits">by Akash &amp; Achin</span>
+  </div>
+  <span id="vm-offline-pill" style="display:none"></span>
+  <div class="nav-tabs">
+    <button class="nav-tab active requires-editor" onclick="showTab('entry')">✏️ Data Entry</button>
+    <button class="nav-tab requires-online" onclick="showTab('history')">📋 History</button>
+    <button class="nav-tab requires-editor requires-online" onclick="showTab('daily')">📅 Daily Schedule</button>
+    <button class="nav-tab requires-editor requires-online" onclick="showTab('missed')">🚫 Missed Readings</button>
+  </div>
+  <div class="nav-user requires-editor">
+    <span>Inspector:</span>
+    <input type="text" id="inspector-name" placeholder="Your name" value="">
+  </div>
+  <div class="nav-role-info" id="nav-role-info">
+    <span id="nav-username-label"></span>
+    <span id="nav-role-badge"></span>
+    <button class="nav-logout-btn requires-admin" id="nav-admin-btn" style="display:none" onclick="openAdminPanel()">⚙️ Users</button>
+    <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme">🌓 Theme</button>
+    <button class="nav-login-btn" id="nav-login-btn" onclick="openLoginScreen()">🔐 Login</button>
+    <button class="nav-logout-btn" id="nav-logout-btn" style="display:none" onclick="doLogout()">Logout</button>
+  </div>
+</nav>
+
+<!-- OFFLINE MODE BANNER -->
+<div id="vm-offline-banner">📵 Offline Mode — Data Entry only. History &amp; schedules hidden. Entries will auto-sync to Supabase when internet is restored.</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-bottom-nav" id="mobile-bottom-nav">
+  <button class="mobile-tab active requires-editor" id="mb-entry" onclick="showTab('entry')">
+    <span class="tab-icon">✏&#xFE0F;</span>Entry
+  </button>
+  <button class="mobile-tab requires-online" id="mb-history" onclick="showTab('history')">
+    <span class="tab-icon">&#x1F4CB;</span>History
+  </button>
+  <button class="mobile-tab requires-editor requires-online" id="mb-daily" onclick="showTab('daily')">
+    <span class="tab-icon">&#x1F4C5;</span>Daily
+  </button>
+  <button class="mobile-tab requires-editor requires-online" id="mb-missed" onclick="showTab('missed')">
+    <span class="tab-icon">&#x1F6AB;</span>Missed
+  </button>
+  <button class="mobile-tab" id="mb-theme" onclick="toggleTheme()" title="Toggle Theme">
+    <span class="tab-icon">&#x1F313;</span>Theme
+  </button>
+  <button class="mobile-tab" id="mb-logout-btn" style="display:none" onclick="doLogout()">
+    <span class="tab-icon">&#x1F6AA;</span>Logout
+  </button>
+  <button class="mobile-tab" id="mb-login-btn" onclick="openLoginScreen()">
+    <span class="tab-icon">&#x1F510;</span>Login
+  </button>
+</div>
+
+<!-- WHATSAPP SEND MODAL -->
+<div class="wa-modal-bg" id="wa-modal">
+  <div class="wa-modal-box">
+    <h3>📲 Send Report via WhatsApp</h3>
+    <p style="font-size:12px;color:#555;margin-bottom:12px;line-height:1.6">
+      <strong>To send to a contact:</strong> Enter their number with country code → tap <em>Send to Number</em>.<br>
+      <strong>To send to a group:</strong> Tap <em>Copy &amp; Open WhatsApp</em> → open your group → long-press → Paste → Send.
+    </p>
+    <div class="wa-phone-row">
+      <input type="tel" id="wa-phone" placeholder="e.g. 919876543210 (country code + number)" maxlength="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div class="wa-preview-label">Message Preview</div>
+    <div class="wa-preview" id="wa-msg-preview"></div>
+    <div class="wa-modal-actions">
+      <button class="btn" onclick="closeWAModal()">Cancel</button>
+      <button class="btn btn-wa" onclick="sendWAGroup()" title="Copy message and open WhatsApp">📋 Copy &amp; Open WhatsApp</button>
+      <button class="btn btn-wa" onclick="sendWANow()">📲 Send to Number</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- DATA ENTRY -->
+<div class="screen active" id="tab-entry">
+  <div class="steps">
+    <button class="step-btn active" id="estep1">1. Select Equipment</button>
+    <button class="step-btn" id="estep2">2. Record Points</button>
+    <button class="step-btn" id="estep3">3. Recommendations</button>
+    <button class="step-btn" id="estep4">4. Review &amp; Save</button>
+  </div>
+
+  <!-- Step 1 -->
+  <div id="entry-s1">
+    <div id="entry-back-source" style="display:none;margin-bottom:8px">
+      <button class="btn" onclick="returnToSourceTab()" style="background:#EFF6FF;color:var(--blue);border-color:var(--blue)">← Back</button>
+    </div>
+    <div class="filter-bar">
+      <select id="e-unit" onchange="filterEntryList()"><option value="">All units</option></select>
+      <select id="e-area" onchange="filterEntryList()"><option value="">All areas</option></select>
+      <input type="text" id="e-search" placeholder="Search equipment..." oninput="filterEntryList()" style="flex:2;min-width:160px">
+      <button class="btn btn-sm" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text);white-space:nowrap" onclick="tabRefresh('entry')" title="Fetch latest data from Supabase">🔄 Refresh</button>
+    </div>
+    <!-- Excel Bulk Upload -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px" id="bulk-action-btns">
+      <button class="btn btn-green" style="padding:12px;font-size:13px;justify-content:center" onclick="openTemplateBuilder()">📋 Select Equipment &amp; Download Template</button>
+      <div class="excel-bulk-zone" style="margin-bottom:0;padding:12px" onclick="document.getElementById('bulk-excel-file').click()">
+        <input type="file" id="bulk-excel-file" accept=".xlsx,.xls" onchange="uploadBulkExcel(this)" style="position:absolute;opacity:0;width:1px;height:1px">
+        <label for="bulk-excel-file" style="cursor:pointer;display:block">
+        <div style="font-size:18px;margin-bottom:4px">📤</div>
+        <div style="font-weight:600;font-size:12px;color:#166534">Upload Filled Excel</div>
+        <div style="font-size:10px;color:#4B7A5E">Click to browse file</div>
+        </label>
+      </div>
+    </div>
+    <div id="bulk-upload-status" style="margin-bottom:8px"></div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Equipment list <small id="e-list-count" style="font-weight:400;color:var(--muted)"></small></span>
+        <span style="font-size:11px;color:var(--muted)">Tap row to select</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="mobile-stack-table equipment-mobile-table">
+          <thead><tr><th>Unit</th><th>Area</th><th style="min-width:160px">Equipment Name</th><th>Schedule</th><th>Last Reading</th></tr></thead>
+          <tbody id="equip-select-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div id="entry-s2" style="display:none">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:15px;font-weight:700" id="s2-eq-name"></div>
+          <div style="font-size:11px;color:var(--muted)" id="s2-eq-meta"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fg" style="flex-direction:row;align-items:center;gap:6px">
+            <label style="white-space:nowrap">Date</label>
+            <input type="date" id="entry-date" style="width:140px" title="Select today or a future date">
+          </div>
+          <div class="fg" style="flex-direction:row;align-items:center;gap:6px">
+            <label style="white-space:nowrap">Resp. Dept <span style="font-weight:400;color:var(--hint)">(optional)</span></label>
+            <select id="entry-resp-dept" style="width:120px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;background:#fff">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <!-- Decoupled Trial checkbox -->
+          <div style="display:flex;align-items:center;gap:6px;background:var(--amber-light,#FFF9C4);border:1px solid #D97706;border-radius:var(--radius);padding:5px 10px">
+            <input type="checkbox" id="decoupled-trial-chk" style="width:15px;height:15px;cursor:pointer;accent-color:#D97706"
+              onchange="onDecoupledToggle(this.checked)">
+            <label for="decoupled-trial-chk" style="font-size:12px;font-weight:600;color:#92400E;cursor:pointer;white-space:nowrap;margin:0">Decoupled Trial</label>
+          </div>
+          <div id="s2-sched-badge"></div>
+        </div>
+      </div>
+    </div>
+    <div id="s2-alert" style="display:none"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+      <span>Measurement points <small id="s2-progress-text" style="font-size:11px;font-weight:400;color:var(--muted)"></small></span>
+      <span style="font-size:10px;color:var(--muted)">ISO 10816 classification</span>
+    </div>
+    <div class="pt-grid" id="pt-cards-container"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" onclick="if(_entrySourceTab){returnToSourceTab()}else{goStep(1)}">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Next: Recommendations →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Recommendations -->
+  <div id="entry-s3" style="display:none">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-body">
+        <div style="font-size:15px;font-weight:700" id="s3-eq-name"></div>
+        <div id="s3-sev-preview" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="rec-section">
+      <h3 style="font-size:13px;font-weight:700;margin-bottom:10px">📋 Recommendations <span style="font-size:11px;font-weight:400;color:var(--muted)">(add from standard list and/or manual notes)</span></h3>
+      <div id="rec-items-container"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <select id="std-rec-picker" style="flex:1;min-width:220px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;background:#fff">
+          <option value="">— Select standard recommendation to add —</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="addRecFromPicker()">➕ Add</button>
+        <button class="btn btn-sm" onclick="addManualRec()">✏️ Add manual note</button>
+      </div>
+      <div style="margin-top:12px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">ADDITIONAL OBSERVATIONS</label>
+        <textarea id="extra-remarks" class="manual-rec" placeholder="Site conditions, noise description, any additional notes..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="goStep(2)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Review →</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Review & Save -->
+  <div id="entry-s4" style="display:none">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Review — <span id="s4-eq-name"></span></span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span id="s4-overall-badge"></span>
+          <div style="display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:4px 8px">
+            <label style="font-size:10px;font-weight:700;color:var(--muted);white-space:nowrap;margin:0">OVERRIDE SEVERITY</label>
+            <select id="s4-sev-override" onchange="applyOverrideSeverity(this.value)" style="font-size:11px;font-weight:700;border:none;background:transparent;color:var(--text);padding:2px 4px;cursor:pointer">
+              <option value="">— Auto (from readings) —</option>
+              <option value="ALERT" style="color:#9A3412;font-weight:700">🔶 ALERT (Attend PM)</option>
+              <option value="ALARM" style="color:#92400E;font-weight:700">⚠️ ALARM (Under Obs.)</option>
+              <option value="NORMAL" style="color:#1E8449;font-weight:700">✅ NORMAL</option>
+              <option value="CRITICAL" style="color:#991B1B;font-weight:700">🚨 CRITICAL — STOP!</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kpi-grid" id="s4-kpis"></div>
+        <div class="tbl-wrap">
+          <table id="s4-review-table">
+            <thead><tr><th>Point</th><th>H Vel</th><th>V Vel</th><th>A Vel</th><th>Acc</th><th>H Dis</th><th>V Dis</th><th>A Dis</th><th>Severity</th></tr></thead>
+            <tbody id="s4-review-body"></tbody>
+          </table>
+        </div>
+        <div id="s4-recs" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn" onclick="goStep(3)">← Back</button>
+      <button class="btn btn-green requires-editor" onclick="saveSession()">💾 Save &amp; Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="screen" id="tab-history">
+  <div class="filter-bar">
+    <input type="date" id="h-from">
+    <input type="date" id="h-to">
+    <select id="h-unit"><option value="">All units</option></select>
+    <select id="h-area"><option value="">All areas</option></select>
+    <select id="h-sev">
+      <option value="">All severity</option>
+      <option value="NORMAL">Normal</option>
+      <option value="ALARM">Alarm</option>
+      <option value="ALERT">Alert</option>
+      <option value="CRITICAL">Critical</option>
+    </select>
+    <select id="h-user" onchange="renderHistory()"><option value="">All users</option></select>
+    <select id="h-decoupled" onchange="renderHistory()">
+      <option value="">All readings</option>
+      <option value="yes">🔗 Decoupled Trial only</option>
+      <option value="no">🔧 Coupled (Normal) only</option>
+    </select>
+    <input type="text" id="h-search" placeholder="Search equipment...">
+    <select id="h-sort" onchange="renderHistory()">
+      <option value="desc">🔽 Newest First</option>
+      <option value="asc">🔼 Oldest First</option>
+    </select>
+    <button class="btn btn-primary" onclick="renderHistory()">🔍 Filter</button>
+    <button class="btn" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text)" onclick="tabRefresh('history')" title="Fetch latest data from Supabase">🔄 Refresh</button>
+    <button class="btn" onclick="exportHistoryExcel()">📥 Excel</button>
+    <button class="btn" onclick="exportHistoryPDF()">📄 PDF Report</button>
+    <button class="btn" onclick="downloadSQLReadingsExcel()" style="background:#4F46E5;color:#FFF;border-color:#4F46E5" title="Download macro-enabled Excel with custom date range">📥 Excel (.xlsm)</button>
+    <button class="btn btn-wa requires-editor" onclick="openWASummaryModal('history')">📲 WhatsApp Summary</button>
+  </div>
+  <div id="history-groups"></div>
+
+  <!-- Trend Modal -->
+  <div class="modal-bg trend-modal" id="trend-modal" onclick="if(event.target===this)closeTrend()" style="z-index:10000;background:rgba(0,0,0,0.72);backdrop-filter:blur(5px)">
+    <div class="modal" style="width:min(96vw,980px);max-height:92vh;background:radial-gradient(circle at top right,#0e1c36 0%,#05080c 70%);border:1px solid rgba(255,255,255,0.08);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.8);color:#e2e8f0;overflow:hidden">
+      <div class="modal-head" style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(30,41,59,0.3);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:2">
+        <span id="trend-title" style="font-weight:700;font-size:14px;color:#58a6ff;display:flex;align-items:center;gap:6px">📈 Equipment Trend</span>
+        <button class="modal-close" onclick="closeTrend()" style="background:none;border:none;color:#8b949e;font-size:24px;cursor:pointer;line-height:1">&#215;</button>
+      </div>
+      <div id="trend-body" class="modal-body" style="padding:16px;max-height:calc(92vh - 62px);overflow:auto;background:#f8fafc;color:#111827">
+        <!-- Trend charts render here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD — Reliability Command Center -->
+<!-- ── DAILY SCHEDULE TAB ── -->
+<div class="screen" id="tab-daily">
+  <div class="ds-head">
+    <div style="font-weight:700;font-size:16px;color:var(--blue-text)">📅 Daily Schedule</div>
+    <span class="ds-pill" id="ds-user-pill">—</span>
+    <div style="flex:1"></div>
+    <select id="ds-team-admin" class="grpsel requires-admin" onchange="dsSyncTeamSelect(this.value)" style="display:none">
+      <option value="auto">My team (auto)</option>
+      <option value="ALL">All Groups</option>
+      <option value="Precise">Precise Group</option>
+      <option value="CB">Chaitanya Bharthi Group</option>
+      <option value="CBA">Chaitanya Bharthi Group A</option>
+    </select>
+    <button class="btn btn-sm" onclick="dsPrevMonth()">◀</button>
+    <span id="ds-month-label" style="font-weight:700;min-width:140px;text-align:center;font-size:13px"></span>
+    <button class="btn btn-sm" onclick="dsNextMonth()">▶</button>
+    <button class="btn btn-sm" onclick="dsToday()">Today</button>
+    <button class="btn btn-sm requires-admin" onclick="openScheduleManager()" title="Change how often equipment is read and generate next month's schedule">⚙️ Schedule Manager</button>
+    <button class="btn btn-sm requires-admin" id="dy-recompute-btn" onclick="dyRecomputeNow()" title="Re-run dynamic recovery now — use this right after entering readings">🔁 Recompute catch-ups<span id="dy-count-badge"></span></button>
+    <button class="btn btn-sm" onclick="reloadScheduleNow()" title="Re-fetch schedule from Supabase">🔄 Reload Schedule</button>
+    <button class="btn btn-sm" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text)" onclick="tabRefresh('daily')" title="Fetch latest readings from Supabase">🔄 Refresh Data</button>
+  </div>
+  <div id="vs-diag" style="display:none;margin-bottom:8px;padding:8px 10px;border-radius:6px;font-size:12px;font-weight:600;word-break:break-word"></div>
+  <div class="card">
+    <div class="card-body" style="padding:12px">
+      <div class="ds-cal" id="ds-cal"></div>
+      <div class="ds-legend">
+        <span><i class="lg-done"></i>✓ Done by the scheduled group</span>
+        <span><i class="lg-covered"></i>⚠ Covered by another group</span>
+        <span><i class="lg-partial"></i>Part of the day missing</span>
+        <span><i class="lg-pending"></i>✗ Missed — nobody took it</span>
+        <span><i class="lg-up"></i>Upcoming</span>
+        <span><i style="background:#f9fafb"></i>Sunday (off)</span>
+        <span><i class="lg-cu"></i>🔁 Has catch-up item(s)</span>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-head" style="background:#EFF6FF">
+      <span class="card-title" id="ds-sel-title" style="color:var(--blue-text)">Select a day</span>
+      <span id="ds-sel-meta" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div class="card-body" style="padding:8px 12px">
+      <div id="ds-sel-empty" style="text-align:center;padding:18px;color:var(--muted);font-size:13px">Tap any day on the calendar to see scheduled equipment.</div>
+      <div class="tbl-wrap" id="ds-sel-wrap" style="display:none">
+        <table class="ds-equip-tbl"><thead><tr><th>#</th><th>Equipment</th><th>Unit</th><th>Area</th><th>Frequency</th><th>Loc</th><th>Reading Date</th><th>Completed By</th><th>Status</th><th>Action</th></tr></thead><tbody id="ds-sel-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-head" style="background:#EFF6FF">
+      <span class="card-title" style="color:var(--blue-text)">📊 Total (All Groups)</span>
+      <span style="font-size:11px;color:var(--muted)">Completed this month</span>
+    </div>
+    <div class="card-body" style="padding:8px 12px">
+      <div id="ds-perf-total"></div>
+      <div id="ds-compare" class="requires-admin" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-weight:700;font-size:13px;color:var(--blue-text);margin-bottom:2px">📊 Team Comparison <span style="font-weight:400;color:var(--muted);font-size:11px">(admin view)</span></div>
+        <div id="ds-compare-sub" style="font-size:11px;color:var(--muted);margin-bottom:10px"></div>
+        <div id="ds-compare-bars" style="margin-bottom:16px"></div>
+        
+        <div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px;color:var(--blue-text);margin-top:16px;margin-bottom:4px;border-top:1px dashed var(--border);padding-top:12px">
+          <span>📈 Historical Month-wise Performance Comparison</span>
+          <button id="ds-hist-toggle" class="btn" onclick="dsToggleHistRange()" style="font-size:10px;padding:3px 8px;cursor:pointer;background:#F3F4F6;border:1px solid #D1D5DB;border-radius:4px;color:#374151">View Current FY</button>
+        </div>
+        <div style="display:flex;gap:12px;font-size:10px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap">
+          <span>🔵 Precise Group</span>
+          <span>🟡 Chaitanya Bharthi</span>
+          <span>🟢 Chaitanya Bharthi-A</span>
+        </div>
+        <div id="ds-compare-monthwise"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PENDING DAILY SCHEDULE TAB ── -->
+<!-- ── MISSED READINGS TAB ── -->
+<div class="screen" id="tab-missed">
+  <div class="ds-head">
+    <div style="font-weight:700;font-size:16px;color:var(--red)">🚫 Missed Readings</div>
+    <div style="flex:1"></div>
+    <select id="mr-period" onchange="mrRender()" class="grpsel" style="font-size:12px">
+      <option value="1">Last Month</option>
+      <option value="2">Last 2 Months</option>
+      <option value="3">Last 3 Months</option>
+      <option value="custom">Custom Range</option>
+    </select>
+    <button class="btn btn-sm" onclick="mrRender()">🔄 Refresh</button>
+    <button class="btn btn-sm" onclick="mrExport()">📥 Excel</button>
+  </div>
+  <!-- Custom date range (shown only when custom selected) -->
+  <div id="mr-custom-range" style="display:none;margin-bottom:10px;display:none">
+    <div class="filter-bar">
+      <input type="date" id="mr-from" placeholder="From" style="flex:1">
+      <input type="date" id="mr-to" placeholder="To" style="flex:1">
+      <button class="btn btn-sm btn-primary" onclick="mrRender()">Apply</button>
+    </div>
+  </div>
+  <!-- Filters -->
+  <div class="filter-bar" style="margin-bottom:10px">
+    <select id="mr-f-group" onchange="mrApplyFilters()" style="flex:1;min-width:120px"><option value="">All Groups</option></select>
+    <select id="mr-f-unit" onchange="mrApplyFilters()" style="flex:1;min-width:90px"><option value="">All Units</option></select>
+    <select id="mr-f-area" onchange="mrApplyFilters()" style="flex:1;min-width:90px"><option value="">All Areas</option></select>
+    <select id="mr-f-days" onchange="mrApplyFilters()" style="flex:1;min-width:120px">
+      <option value="">All Days Since</option>
+      <option value="30">30+ days</option>
+      <option value="60">60+ days</option>
+      <option value="90">90+ days</option>
+      <option value="180">180+ days</option>
+    </select>
+    <input type="text" id="mr-f-search" placeholder="🔍 Search equipment..." oninput="mrApplyFilters()" style="flex:2;min-width:140px">
+    <button class="btn btn-sm" onclick="mrClearFilters()">✕ Clear</button>
+  </div>
+  <div id="mr-kpis" class="kpi-grid" style="margin-bottom:12px"></div>
+  <div class="card">
+    <div class="card-head" style="background:#FEE2E2">
+      <span class="card-title" style="color:var(--red)" id="mr-card-title">Missed Readings Report</span>
+      <span id="mr-meta" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div class="card-body" style="padding:8px 12px">
+      <div id="mr-empty" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:13px">✅ No missed readings found for selected period.</div>
+      <div class="tbl-wrap" id="mr-wrap">
+        <table class="mobile-stack-table"><thead><tr>
+          <th>Equipment</th><th>Unit</th><th>Area</th>
+          <th>Days Since</th><th>Last Reading</th><th>Responsible Group</th><th>Sched. Date</th><th>Status</th><th>Action</th>
+        </tr></thead><tbody id="mr-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SCHEDULE MANAGER MODAL (admin only): frequency rules -> schedule for a future month -->
+<div class="admin-panel-modal" id="schedule-manager-modal">
+  <div class="admin-panel-box sm-box">
+    <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">
+      <span style="font-weight:700;font-size:14px">🗓 Schedule Manager — how often equipment is read</span>
+      <button class="modal-close" onclick="closeScheduleManager()">&#215;</button>
+    </div>
+    <div id="sm-body" style="padding:14px 16px"></div>
+  </div>
+</div>
+
+<!-- TEMPLATE BUILDER MODAL -->
+<div class="admin-panel-modal" id="template-builder-modal">
+  <div class="admin-panel-box" style="width:min(96vw,760px);max-height:92vh">
+    <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
+      <span style="font-weight:700;font-size:14px">📋 Build Excel Template — Select Equipment</span>
+      <button class="modal-close" onclick="closeTemplateBuilder()">&#215;</button>
+    </div>
+    <div style="padding:14px 16px">
+      <!-- Filters -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
+        <select id="tb-unit" onchange="renderTemplateEquipList()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;flex:1;min-width:100px"><option value="">All Units</option></select>
+        <select id="tb-area" onchange="renderTemplateEquipList()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;flex:1;min-width:100px"><option value="">All Areas</option></select>
+        <input type="text" id="tb-search" placeholder="Search equipment..." oninput="renderTemplateEquipList()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;flex:2;min-width:140px">
+        <button class="btn btn-sm btn-primary" onclick="selectAllTemplate()">✓ All</button>
+        <button class="btn btn-sm" onclick="clearAllTemplate()">✕ Clear</button>
+      </div>
+      <!-- Selected count + date -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 12px;background:var(--blue-light);border-radius:var(--radius);border:1px solid #93C5FD">
+        <span style="font-size:12px;color:var(--blue-text);font-weight:600" id="tb-selected-count">0 equipment selected</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap">
+          <label style="font-size:11px;font-weight:600;color:var(--muted)">READING DATE</label>
+          <input type="date" id="tb-date" style="padding:5px 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px">
+          <button class="btn btn-green" onclick="downloadSmartTemplate()" id="tb-download-btn" disabled style="opacity:.5">⬇️ Download Template</button>
+        </div>
+      </div>
+      <!-- Equipment table with checkboxes -->
+      <div class="tbl-wrap" style="max-height:380px;overflow-y:auto">
+        <table class="mobile-stack-table overdue-mobile-table">
+          <thead style="position:sticky;top:0;z-index:1">
+            <tr>
+              <th style="width:36px"><input type="checkbox" id="tb-check-all" onchange="toggleAllTemplate(this.checked)" style="width:15px;height:15px"></th>
+              <th>Unit</th><th>Area</th><th style="min-width:180px">Equipment</th><th>Points</th><th>Parameters</th><th>Last Reading</th>
+            </tr>
+          </thead>
+          <tbody id="tb-equip-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>⚡ VibeMon</h1>
+      <p>Vibration Monitoring System — Login</p>
+    </div>
+    <div class="login-field">
+      <label>USERNAME</label>
+      <input type="text" id="login-user" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>PASSWORD</label>
+      <input type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">🔐 Login</button>
+    <div class="login-err" id="login-err">❌ Invalid username or password.</div>
+    
+  </div>
+</div>
+
+<!-- ADMIN PANEL MODAL -->
+<div class="admin-panel-modal" id="admin-panel-modal">
+  <div class="admin-panel-box">
+    <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
+      <span style="font-weight:700;font-size:14px">🛡️ Admin Panel — User Management</span>
+      <button class="modal-close" onclick="closeAdminPanel()">&#215;</button>
+    </div>
+    <div style="padding:16px">
+
+      <div style="margin-bottom:14px"><button class="btn btn-primary" onclick="closeAdminPanel();openScheduleManager()">🗓 Open Schedule Manager (equipment frequencies &amp; next month's schedule)</button></div>
+
+      <!-- SUPABASE SETTINGS -->
+      <div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:#3730A3;margin-bottom:8px">⚡ Supabase Connection Settings</div>
+        <div style="font-size:11px;color:#4338CA;margin-bottom:10px">These are stored in this browser only. To make them permanent, edit <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of the HTML file.</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+          <label style="font-size:11px;font-weight:600;color:#374151">PROJECT URL</label>
+          <input type="text" id="gs-url" placeholder="https://your-project-id.supabase.co" style="padding:7px 10px;border:1px solid #C7D2FE;border-radius:6px;font-size:12px;background:#fff;color:var(--text)">
+          <label style="font-size:11px;font-weight:600;color:#374151">ANON PUBLIC KEY</label>
+          <input type="text" id="supa-anon-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="padding:7px 10px;border:1px solid #C7D2FE;border-radius:6px;font-size:12px;background:#fff;color:var(--text)">
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveGSUrl()">💾 Save Config</button>
+          <button class="btn btn-sm" onclick="testGS()">🔌 Test Connection</button>
+          <button class="btn btn-sm" onclick="manualFetchGS()">🔄 Sync Now</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="clearGSUrl()">✕ Clear</button>
+        </div>
+        <div id="gs-result"></div>
+        <!-- Migration note for is_decoupled column -->
+        <div style="margin-top:10px;background:#FFFBEB;border:1px solid #D97706;border-radius:6px;padding:10px 12px;font-size:11px;color:#92400E">
+          <div style="font-weight:700;margin-bottom:4px">📋 Supabase Migration Required for Decoupled Trial feature:</div>
+          <div>Run this SQL in your Supabase SQL editor:</div>
+          <code style="display:block;margin-top:6px;padding:8px;background:#FFF3CD;border-radius:4px;font-size:10px;white-space:pre-wrap;user-select:all">ALTER TABLE readings ADD COLUMN IF NOT EXISTS is_decoupled BOOLEAN DEFAULT false;</code>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">Create New Engineer Account</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="fg">
+          <label>USERNAME</label>
+          <input type="text" id="new-user-name" placeholder="e.g. rajesh.kumar">
+        </div>
+        <div class="fg">
+          <label>DISPLAY NAME</label>
+          <input type="text" id="new-user-display" placeholder="e.g. Rajesh Kumar">
+        </div>
+        <div class="fg">
+          <label>PASSWORD</label>
+          <input type="password" id="new-user-pass" placeholder="Min 6 characters">
+        </div>
+        <div class="fg">
+          <label>CONFIRM PASSWORD</label>
+          <input type="password" id="new-user-pass2" placeholder="Repeat password">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createEditorUser()">➕ Create Engineer Account</button>
+      <div id="admin-msg" style="margin-top:8px"></div>
+      <div style="margin-top:18px;font-size:13px;font-weight:700;margin-bottom:8px">Current Users</div>
+      <div class="tbl-wrap" style="margin-bottom:18px">
+        <table>
+          <thead><tr><th>Username</th><th>Display Name</th><th>Role</th><th>Action</th></tr></thead>
+          <tbody id="user-table-body"></tbody>
+        </table>
+      </div>
+      <!-- Schedule Excel Upload Section -->
+      <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">📅 Upload Custom Schedule Excel</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          Upload an Excel file (e.g. <code>NTPC_Dadri_Vibration_Schedule_Universal.xlsx</code>) containing sheets named: <strong>Precise</strong>, <strong>Chaitanya Bharthi</strong>, and <strong>Chaitanya Bharthi-A</strong> to update the daily schedule day-wise and team-wise.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="file" id="admin-schedule-upload" accept=".xlsx, .xls" style="font-size:12px;padding:6px;border:1px solid var(--border2);border-radius:var(--radius);flex:1;background:var(--bg-input);color:var(--text-main)">
+          <button class="btn btn-green" onclick="uploadCustomSchedule()" style="height:32px;font-size:12px;font-weight:600">⚡ Upload</button>
+        </div>
+        <div id="admin-schedule-msg" style="margin-top:6px;font-size:11px;font-weight:600"></div>
+        <button class="btn btn-sm" onclick="resetCustomSchedule()" style="margin-top:10px;font-size:11px;color:var(--red);border-color:var(--red);background:transparent">Revert to Default Schedule</button>
+      </div>
+      <!-- Data Retention Section -->
+      <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">🗑️ Data Retention Cleanup</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          Removes readings older than <strong>6 months</strong> from Supabase to keep the database fast.
+          <strong>Exception:</strong> Equipment with fewer than 5 readings in the 6-month window keeps ALL its old data for trend analysis.
+        </div>
+        <button class="btn" onclick="runDataRetention()" style="background:#FEE2E2;color:#991B1B;border-color:#DC2626;font-weight:600">🗑️ Run Data Retention Cleanup</button>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">
+          💡 <strong>Tip:</strong> For mobile HTML on Supabase, ~3,000–5,000 rows can be processed smoothly. Beyond 8,000 rows, filtering and rendering may slow down. Keep 3–4 months for best mobile performance.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT REPORT MODAL -->
+<div class="edit-report-modal" id="edit-report-modal">
+  <div class="edit-report-box">
+    <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
+      <span style="font-weight:700;font-size:14px" id="edit-report-title">✏️ Edit Report</span>
+      <button class="modal-close" onclick="closeEditReport()">&#215;</button>
+    </div>
+    <div style="padding:14px 16px" id="edit-report-body"></div>
+  </div>
+</div>
+
+  <!-- Credits footer -->
+  <div style="text-align:center;padding:10px 16px 14px;font-size:10.5px;color:var(--hint);letter-spacing:0.02em;user-select:none">
+    VibeMon — created by <strong style="font-weight:600;color:var(--muted)">Akash Shrivastav</strong> &amp; <strong style="font-weight:600;color:var(--muted)">Achin Maheshwari</strong>
+  </div>
+</div><!-- end .app -->
+
+
+
+<script src="js/core/mobile-download.js?v=20260922"></script>
+<script src="js/core/config.js?v=20260922"></script>
+<script src="js/core/ui-helpers.js?v=20260922"></script>
+<script src="js/data/equipment-master.js?v=20260922"></script>
+<script src="js/data/severity.js?v=20260922"></script>
+<script src="js/data/html-utils.js?v=20260922"></script>
+<script src="js/data/recommendations.js?v=20260922"></script>
+<script src="js/data/data-loader.js?v=20260922"></script>
+<script src="js/core/tabs-filters.js?v=20260922"></script>
+<script src="js/data/reading-lookup.js?v=20260922"></script>
+<script src="js/entry/entry-wizard.js?v=20260922"></script>
+<script src="js/offline/offline-queue.js?v=20260922"></script>
+<script src="js/entry/save-session.js?v=20260922"></script>
+<script src="js/history/history.js?v=20260922"></script>
+<script src="js/history/trend.js?v=20260922"></script>
+<script src="js/history/export-history.js?v=20260922"></script>
+<script src="js/reports/dashboard-pdf.js?v=20260922"></script>
+<script src="js/auth/auth.js?v=20260922"></script>
+<script src="js/admin/data-retention.js?v=20260922"></script>
+<script src="js/admin/admin-panel.js?v=20260924"></script>
+<script src="js/history/edit-report.js?v=20260922"></script>
+<script src="js/history/session-actions.js?v=20260922"></script>
+<script src="js/bulk/template-builder.js?v=20260922"></script>
+<script src="js/bulk/bulk-upload.js?v=20260922"></script>
+<script src="js/reports/user-report.js?v=20260922"></script>
+<script src="js/share/whatsapp.js?v=20260922"></script>
+<script src="js/exceptions/exceptions.js?v=20260922"></script>
+<script src="js/exceptions/pending-equipment.js?v=20260922"></script>
+<script src="js/schedule/schedule-data.js?v=20260924"></script>
+<script src="js/schedule/daily-schedule.js?v=20260924"></script>
+<script src="js/schedule/pending-schedule.js?v=20260922"></script>
+<script src="js/schedule/monthly-performance.js?v=20260922"></script>
+<script src="js/core/tab-refresh.js?v=20260922"></script>
+<script src="js/export/sql-export.js?v=20260922"></script>
+<script src="js/export/xlsm-template-data.js?v=20260922"></script>
+<script src="js/export/xlsm-export.js?v=20260922"></script>
+<script src="js/entry/entry-navigation.js?v=20260922"></script>
+<script src="js/schedule/missed-readings.js?v=20260922"></script>
+<script src="js/schedule/schedule-engine.js?v=20260922"></script>
+<script src="js/schedule/dynamic-recovery.js?v=20260924"></script>
+<script src="js/admin/schedule-manager.js?v=20260922"></script>
+<script src="js/core/equip-autocomplete.js?v=20260922"></script>
+<script src="js/core/equip-search-setup.js?v=20260922"></script>
+<script src="js/app-init.js?v=20260922"></script>
+
+
+</body>
+</html>

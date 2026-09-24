@@ -1,0 +1,46 @@
+/* Daily Schedule tab (calendar, legend, equipment table) */
+
+    .ds-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+    .ds-pill{padding:4px 10px;background:var(--blue-light);color:var(--blue-text);border-radius:999px;font-weight:600;font-size:12px}
+    .ds-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;background:var(--border);padding:4px;border-radius:8px}
+    .ds-cal .dow{font-size:10px;font-weight:700;text-align:center;color:var(--muted);padding:4px 2px;background:var(--surface)}
+    .ds-day{background:var(--surface);min-height:62px;padding:4px 6px;cursor:pointer;border-radius:4px;position:relative;font-size:11px;transition:.1s}
+    .ds-day:hover{background:var(--blue-light)}
+    .ds-day.empty{background:transparent;cursor:default;visibility:hidden}
+    .ds-day.sunday{background:#f9fafb;color:var(--hint);cursor:default}
+    .ds-day.today{outline:2px solid var(--blue);outline-offset:-2px}
+    .ds-day.selected{background:var(--blue);color:#fff}
+    .ds-day.covered{background:#FEF08A}
+    .ds-day .dst{font-size:9.5px;font-weight:700;margin-top:2px;letter-spacing:.2px}
+    .ds-legend i.lg-done{background:rgba(30,132,73,.45)}
+    .ds-legend i.lg-covered{background:rgba(250,204,21,.7)}
+    .ds-legend i.lg-partial{background:rgba(249,115,22,.5)}
+    .ds-legend i.lg-pending{background:rgba(220,38,38,.5)}
+    .ds-legend i.lg-up{background:#fff;border:1px solid var(--border2)}
+    .ds-day.done{background:var(--green-light)}
+    .ds-day.partial{background:var(--amber-light)}
+    .ds-day.pending{background:var(--red-light)}
+    .ds-day .dnum{font-weight:700;font-size:13px}
+    .ds-day .dwd{font-size:9px;opacity:.7;margin-top:2px}
+    .ds-day .dprog{position:absolute;bottom:3px;left:6px;right:6px;height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden}
+    .ds-day .dprog>i{display:block;height:100%;background:var(--green)}
+    .ds-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin-top:8px}
+    .ds-legend span{display:inline-flex;align-items:center;gap:4px}
+    .ds-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+    .ds-equip-tbl th,.ds-equip-tbl td{padding:6px 8px;font-size:12px}
+    .ds-equip-tbl tr.done td{background:var(--green-light)}
+    .grpsel{padding:5px 10px;border:1px solid var(--border2);border-radius:6px;font-size:12px;background:var(--surface)}
+
+    /* Dynamic Recovery: catch-up badge (day table), calendar dot, review panel */
+    .ds-day.has-catchup{box-shadow:inset 0 0 0 2px #7C3AED}
+    .ds-legend i.lg-cu{background:#fff;box-shadow:inset 0 0 0 2px #7C3AED}
+    .cu-badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;white-space:nowrap;cursor:help}
+    #dy-panel .dy-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:4px 10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);font-size:12px}
+    #dy-panel .dy-row:last-child{border-bottom:none}
+    #dy-panel .dy-eq{grid-column:1/-1;font-size:12.5px}
+    #dy-panel .note{color:var(--muted);font-size:11px}
+    #dy-panel .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid var(--border2)}
+    #dy-panel .tag.piggyback{border-color:#16A34A;color:#16A34A}
+    #dy-panel .tag.addon{border-color:#2563EB;color:#2563EB}
+    #dy-panel .tag.reserve{border-color:#EA580C;color:#EA580C}
+    @media(max-width:640px){ #dy-panel .dy-row{grid-template-columns:1fr} }
