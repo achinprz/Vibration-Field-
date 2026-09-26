@@ -46,7 +46,7 @@ function selectEquip(e) {
       limEl.innerHTML = '';
     }
   }
-  document.getElementById('s2-eq-meta').textContent=`${e.unit} · ${e.area} · Every ${e.frequency} days · ${e.points.length} measurement points`;
+  document.getElementById('s2-eq-meta').textContent=`${e.unit} · ${e.area} · ${(!e.frequency ? 'Not scheduled' : (isNaN(e.frequency) ? e.frequency : 'Every ' + e.frequency + ' days'))} · ${e.points.length} measurement points`;
   const _entryDateEl = document.getElementById('entry-date');
   const _todayIso = _todayFmt();
   _entryDateEl.value = _todayIso;
@@ -254,28 +254,36 @@ function addRecFromPicker() {
   renderRecItems();
 }
 
+// Rebuild the standard-recommendation dropdown from STD_RECS (called whenever the list is edited or reloaded)
+function refreshRecPicker() {
+  const picker=document.getElementById('std-rec-picker'); if(!picker) return;
+  while(picker.options.length>1) picker.remove(1);
+  STD_RECS.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;picker.add(o);});
+}
+
 function renderRecItems() {
   const con=document.getElementById('rec-items-container'); con.innerHTML='';
   // Populate the std-rec-picker if STD_RECS available and not yet populated
   const picker=document.getElementById('std-rec-picker');
-  if(picker && STD_RECS.length && picker.options.length<=1){
-    STD_RECS.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;picker.add(o);});
-  }
+  if(picker && picker.options.length-1 !== STD_RECS.length) refreshRecPicker();
+  // Every recommendation — from the standard list, typed by hand, or accepted from the AI — is one numbered row
+  // (1., 2., 3. …) and is saved in that order, exactly as the Review step and History show them.
+  const noHtml = `<span style="flex:0 0 auto;min-width:22px;font-size:12px;font-weight:700;color:var(--muted);padding-top:6px">`;
   entryRecs.forEach((rec,i)=>{
     const div=document.createElement('div'); div.className='rec-item';
-    if(rec.type==='dropdown') {
-      div.innerHTML=`<span style="flex:1;padding:6px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius);font-size:12px;color:#1D4E8A;font-weight:500">📋 ${rec.value}</span>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removeRec(${i})">✕ Remove</button>`;
+    const removeBtn=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removeRec(${i})">✕ Remove</button>`;
+    if(rec.type==='dropdown' || rec.type==='ai') {
+      const isAI = rec.type==='ai';
+      div.innerHTML=`${noHtml}${i+1}.</span><span style="flex:1;padding:6px 10px;background:${isAI?'#ECFDF5':'#EFF6FF'};border:1px solid ${isAI?'#A7F3D0':'#BFDBFE'};border-radius:var(--radius);font-size:12px;color:${isAI?'#065F46':'#1D4E8A'};font-weight:500;line-height:1.4">${isAI?'🤖':'📋'} ${escHtml(rec.value)}</span>${removeBtn}`;
     } else {
-      div.innerHTML=`<input type="text" value="${rec.value}" placeholder="Enter manual recommendation..." oninput="updateRec(${i},this.value)"
-        style="flex:1;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px">
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removeRec(${i})">✕ Remove</button>`;
+      div.innerHTML=`${noHtml}${i+1}.</span><input type="text" value="${escHtml(rec.value)}" placeholder="Enter manual recommendation..." oninput="updateRec(${i},this.value)"
+        style="flex:1;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px">${removeBtn}`;
     }
     con.appendChild(div);
   });
 }
-
 function addRecDropdown() {
+  if(!STD_RECS.length) return;
   entryRecs.push({type:'dropdown', value:STD_RECS[0]});
   renderRecItems();
 }

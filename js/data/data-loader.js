@@ -60,14 +60,14 @@ async function fetchRecommendations() {
       .select('recommendation')
       .order('id');
     if (error) throw error;
-    if (data && data.length > 0) {
-      STD_RECS = data.map(r => r.recommendation);
-      mergeExtraRecs();
-      console.log('Recommendations loaded:', STD_RECS.length);
-      return true;
-    }
+    // Supabase is the ONLY source whenever it can be reached — even if the table is empty. (Edited in Admin Panel -> Recommendations.)
+    STD_RECS = (data || []).map(r => r.recommendation).filter(Boolean);
+    try { localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(STD_RECS)); } catch(e) {}
+    try { if (typeof refreshRecPicker === 'function') refreshRecPicker(); } catch(e) {}
+    console.log('Recommendations loaded from Supabase:', STD_RECS.length);
+    return true;
   } catch(e) {
-    console.warn('Recommendations fetch failed:', e.message);
+    console.warn('Recommendations fetch failed — keeping this device\'s last saved copy:', e.message);
   }
   return false;
 }

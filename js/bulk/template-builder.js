@@ -216,7 +216,7 @@ async function downloadSmartTemplate() {
     };
     ws.getCell(r,17).dataValidation = {
       type:'list', allowBlank:true,
-      formulae:['Rec_List!$A$2:$A$'+(STD_RECS.length+1)],
+      formulae:['Rec_List!$A$2:$A$'+(Math.max(STD_RECS.length,1)+1)],
       showErrorMessage:false
     };
     ws.getCell(r,18).dataValidation = {

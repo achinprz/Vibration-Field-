@@ -86,7 +86,7 @@ function dsqRefresh() {
     const cu = cuRows.find(r => r.original_team === o.team && r.original_day === o.wd && normalizeEquipName(r.equipment) === normalizeEquipName(o.item.n));
     const cuTxt = cu ? ` <span class="cu-badge" title="Moved to a catch-up day">🔁 catch-up ${escHtml(cu.assigned_date || '')} · ${escHtml(TEAM_NAME[cu.assigned_team] || cu.assigned_team || '')}</span>` : '';
     const mine = (myTeam && o.team === myTeam) ? ' <span class="dsq-mine">your group</span>' : '';
-    return `<tr style="background:${bg}"><td><a href="#" class="dsq-eq" onclick="viewEquipHistory(${jsArg(o.item.n)});return false">${escHtml(o.item.n)}</a></td><td>${sched}</td><td>${escHtml(TEAM_NAME[o.team] || o.team)}${mine}</td><td>${escHtml(o.item.l || '')}</td><td>${label}${cuTxt}</td><td>${readOn}</td><td>${escHtml(by)}</td></tr>`;
+    return `<tr style="background:${bg}"><td class="eqcell" data-label="Equipment"><a href="#" class="dsq-eq" onclick="viewEquipHistory(${jsArg(o.item.n)});return false">${escHtml(o.item.n)}</a>${dsEquipMeta(o.item.u || (equipInfo(o.item.n) || {}).unit, o.item.a || (equipInfo(o.item.n) || {}).area, o.item.f)}</td><td data-label="Scheduled">${sched}</td><td data-label="Group">${escHtml(TEAM_NAME[o.team] || o.team)}${mine}</td><td data-label="Loc">${escHtml(o.item.l || '')}</td><td data-label="Status">${label}${cuTxt}</td><td data-label="Read on">${readOn}</td><td data-label="Read by">${escHtml(by)}</td></tr>`;
   }).join('');
 
   const due = cnt.done + cnt.covered + cnt.missed + cnt.today;

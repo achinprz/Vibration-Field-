@@ -65,6 +65,27 @@ function dsVersionFor(y, m) {   // which version (its `from`) is in force for a 
   return (pick || VIBE_VERSIONS[0]).from;
 }
 
+// What the schedule knows about a machine, from ANY team / day / version: { l: location, f: frequency } (blank if unknown).
+// Catch-up rows only carry the location that was on the schedule when they were created, which is blank whenever the
+// schedule's Location cells were empty then — so anything that shows a catch-up asks here instead of trusting that copy.
+let _infoIdx = null, _infoSrc = null, _infoLen = -1;
+function dsScheduleInfo(name) {
+  const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!_infoIdx || _infoSrc !== VIBE_VERSIONS || _infoLen !== VIBE_VERSIONS.length) {
+    const idx = {};
+    const scan = data => Object.keys(data || {}).forEach(t => Object.keys(data[t] || {}).forEach(d => (data[t][d] || []).forEach(it => {
+      if (!it || !it.n) return;
+      const k = norm(it.n), e = (idx[k] = idx[k] || { l: '', f: '' });
+      if (!e.l && it.l) e.l = it.l;
+      if (!e.f && it.f) e.f = it.f;
+    })));
+    VIBE_VERSIONS.slice().reverse().forEach(v => scan(v.data));   // newest version first
+    try { scan(VIBE_SCHEDULE); } catch (e) {}
+    _infoIdx = idx; _infoSrc = VIBE_VERSIONS; _infoLen = VIBE_VERSIONS.length;
+  }
+  return _infoIdx[norm(name)] || { l: '', f: '' };
+}
+
 // Build VIBE_SCHEDULE[team][workingDay] = [{n,u,a,f,l,r}, ...] from flat sheet rows.
 // Expected row shape (from the "VIBE_SCHEDULE" Google Sheet tab):
 // { Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation }
@@ -153,6 +174,9 @@ async function fetchVibeSchedule() {
     // Map Supabase rows — use 'WorkingDay' key so _buildScheduleFromRows finds it.
     // Rows are grouped into versions by effective_from (missing/NULL = the original schedule).
     VIBE_RAW_KEYS = Object.keys(allData[0] || {});
+    // A blank Location falls back to what the same machine has in any other schedule version (e.g. a generated month built before locations were loaded).
+    const locByEq = {};
+    allData.forEach(r => { const l = _ciGet(r, ['Location', 'location', 'loc', 'zone']); if (l && r.equipment && !locByEq[r.equipment]) locByEq[r.equipment] = l; });
     const groups = {};
     allData.forEach(r => {
       const from = r.effective_from ? String(r.effective_from).slice(0, 10) : '';
@@ -161,7 +185,7 @@ async function fetchVibeSchedule() {
         WorkingDay: r.day_number,
         Equipment: r.equipment,
         Frequency: r.frequency || 'Monthly',
-        Location: _ciGet(r, ['Location', 'location', 'loc', 'zone']),
+        Location: _ciGet(r, ['Location', 'location', 'loc', 'zone']) || locByEq[r.equipment] || '',
         Rotation: _ciGet(r, ['Rotation', 'rotation']),
         _teamRaw: r.team
       });

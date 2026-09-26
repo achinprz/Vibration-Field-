@@ -47,7 +47,7 @@ function dyBuildMisses(y, m, today) {
         if (st) return;                                  // already fulfilled — not a miss
         const sev = (lastRead[it.n] && lastRead[it.n].severity) || 'NORMAL';
         misses.push({
-          equipment: it.n, location: it.l || '', team, wd, date: dsFmt(dt),
+          equipment: it.n, location: it.l || (typeof dsScheduleInfo === 'function' ? dsScheduleInfo(it.n).l : '') || '', team, wd, date: dsFmt(dt),
           sevRank: DY_SEV_RANK[sev] != null ? DY_SEV_RANK[sev] : 0,
           overdueDays: Math.round((today - dt) / 86400000)
         });
@@ -88,7 +88,7 @@ function dyPlan(y, m, misses, existingRows) {
       const items = (S[team] && S[team][String(i + 1)]) || [];
       if (!items.length) return;
       const k = ensure(team, dsFmt(dt));
-      items.forEach(it => { const l = it.l || ''; locs[k].set(l, (locs[k].get(l) || 0) + 1); load[k]++; });
+      items.forEach(it => { const l = it.l || (typeof dsScheduleInfo === 'function' ? dsScheduleInfo(it.n).l : '') || ''; locs[k].set(l, (locs[k].get(l) || 0) + 1); load[k]++; });
     });
   });
   (existingRows || []).forEach(r => {

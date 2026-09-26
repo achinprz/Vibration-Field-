@@ -34,6 +34,7 @@ const emFmtDay = dt => dt ? dt.toLocaleDateString(undefined, { weekday: 'short',
 const emFreqOf = code => EM_FREQ.find(f => f.code === code) || EM_FREQ[2];
 function emFreqCodeFromWord(w) {
   const u = String(w || '').toUpperCase();
+  if (!u.trim() || /NOT SCHEDULED|NO FREQ|NONE/.test(u)) return 'N';
   const f = EM_FREQ.find(x => x.label === u || x.word.toUpperCase() === u);
   return f ? f.code : (/WEEK/.test(u) ? 'W' : /10/.test(u) ? 'T' : /FORT/.test(u) ? 'F' : /MONTH/.test(u) ? 'M' : 'F');
 }
@@ -360,7 +361,7 @@ function emRenderList() {
 function emSelect(name) {
   const m = emMaster(name); if (!m) return;
   const hadMsg = !!EM.msg;
-  EM.sel = name; EM.draft = emDraftFrom(m); EM.orig = name; EM.applyFam = {}; EM.msg = '';
+  EM.sel = name; EM.draft = emDraftFrom(m); EM.orig = name; EM.applyFam = {}; EM.sch = emNewSch(name); EM.msg = '';
   if (hadMsg) return emRender();
   emRenderList();
   const ed = document.getElementById('em-editor'); if (ed) ed.innerHTML = emEditorHtml();
@@ -373,7 +374,8 @@ function emEditorHtml() {
   const ap = k => `<label><input type="checkbox" data-apf="${k}"${EM.applyFam[k] ? ' checked' : ''}> ${({ limits: 'limits', params: 'parameters', category: 'category', rpm: 'speed', dept: 'dept' })[k]}</label>`;
   return `<div class="em-form"><div class="em-h">Editing: ${escHtml(EM.orig)}</div>
     ${emFieldsHtml(d, 'edit')}
-    <div class="em-fam"><b>Frequency:</b> ${escHtml(m ? (m.frequency || '—') : '—')} <span class="em-sub">— change how often a machine or family is read in <a href="#" data-em-go="sm">Schedule Manager</a>.</span></div>
+    <div class="em-fam"><b>Frequency:</b> ${escHtml(m && m.frequency ? m.frequency : 'Not scheduled')} <span class="em-sub">— change how often a machine or family is read in <a href="#" data-em-go="sm">Schedule Manager</a>.</span></div>
+    <div id="em-edit-sched">${emEditSchedHtml()}</div>
     ${others ? `<div class="em-fam"><b>Also apply to the ${others} other machine(s) in family ${escHtml(fam)}:</b><br>${['limits', 'params', 'category', 'rpm', 'dept'].map(ap).join('')}<div class="em-sub">Unticked = only this machine changes. Points are never copied to other machines.</div></div>` : ''}
     <div id="em-msgbar"></div>
     <div class="em-row"><button class="btn btn-green" data-em="save"${EM.busy ? ' disabled' : ''}>💾 Save changes</button><button class="btn" data-em="revert">Revert</button>
@@ -418,7 +420,7 @@ async function emSave() {
       summary.push('Also applied ' + Object.keys(logged).join(', ') + ' to ' + others.length + ' other machine(s) in the family.');
     }
     await emRefreshAll(renamed);
-    EM.sel = r.name; EM.orig = r.name; const m2 = emMaster(r.name); EM.draft = m2 ? emDraftFrom(m2) : null; EM.applyFam = {};
+    EM.sel = r.name; EM.orig = r.name; const m2 = emMaster(r.name); EM.draft = m2 ? emDraftFrom(m2) : null; EM.applyFam = {}; EM.sch = m2 ? emNewSch(r.name) : null;
     EM.busy = false;
     emSay('✅ ' + summary.join('\n'), 'ok');
     emRenderList();
@@ -521,9 +523,11 @@ async function emWriteVisits(p, name) {
   } catch (e) { await _supabase.from('vibe_schedule').delete().eq('effective_from', p.from); throw e; }   // no version existed here before, so this only removes our own half-written copy
   return rows;
 }
-function emSpecFrom(a) { return { name: String(a.name || '').trim().replace(/\s+/g, ' '), loc: a.loc, team: a.team, freq: a.freqCode }; }
+const emEffLoc = d => String(d.loc === '__other' ? (d.locOther || '') : (d.loc || '')).trim();
+function emSpecFrom(a) { return { name: String(a.name || '').trim().replace(/\s+/g, ' '), loc: emEffLoc(a), team: a.team, freq: a.freqCode }; }
 // everything that will be written, without writing it
 function emBuildPlans(a) {
+  if (a.freqCode === 'N') return { ok: true, plans: [], notes: [], none: true };   // "not scheduled": nothing to place
   const E = window.VibeEngine, spec = emSpecFrom(a), plans = [], notes = [];
   if (!window.VibeEngine || typeof smSourceRows !== 'function') return { ok: false, reason: 'The schedule engine is not loaded.' };
   if (!(VIBE_VERSIONS || []).length) return { ok: false, reason: 'The schedule has not loaded yet — open the Daily Schedule tab once, then try again.' };
@@ -550,30 +554,117 @@ function emScheduleInfoFor(name) {
     return { team: Object.keys(tc).sort((a, b) => tc[b] - tc[a])[0], loc: (rows.find(r => r[4]) || [])[4] || '', freq: rows[0][3] };
   } catch (e) { return null; }
 }
-function emLocations() {
+function emScheduledNames() {   // every machine that appears in any schedule version
   const set = new Set();
-  (VIBE_VERSIONS || []).forEach(v => Object.keys(v.data || {}).forEach(t => Object.keys(v.data[t]).forEach(d => (v.data[t][d] || []).forEach(it => { if (it.l) set.add(it.l); }))));
-  return Array.from(set).sort();
+  (VIBE_VERSIONS || []).forEach(v => Object.keys(v.data || {}).forEach(t => Object.keys(v.data[t]).forEach(d => (v.data[t][d] || []).forEach(it => { if (it && it.n) set.add(it.n); }))));
+  return set;
 }
-function emNewAdd() { return Object.assign(emBlankDraft(), { clone: '', freqCode: 'F', team: 'Precise', loc: '', start: 'current' }); }
+
+/* Location suggestions. Location codes (A, B, A1 …) are the plant zones the Daily Schedule groups visits by. For a new or
+   unscheduled machine we rank the codes by where machines like it are already visited: same unit & area first, then same
+   area, then same family, and the location of the machine it was copied from. */
+let _emLocCache = null;
+function emLocStats() {
+  if (_emLocCache && Date.now() - _emLocCache.t < 1500) return _emLocCache.S;
+  const S = { all: new Map(), byUA: new Map(), byArea: new Map(), byFam: new Map(), teamAt: new Map(), locOf: new Map() };
+  let rows = []; try { const n = new Date(); rows = smSourceRows(n.getFullYear(), n.getMonth()); } catch (e) {}
+  const seen = new Set();
+  const bump = (map, key, loc) => { if (!key) return; const m = map.get(key) || map.set(key, new Map()).get(key); m.set(loc, (m.get(loc) || 0) + 1); };
+  rows.forEach(r => {
+    const team = r[0], name = r[2], loc = r[4]; if (!name || !loc) return;
+    const t = S.teamAt.get(loc) || S.teamAt.set(loc, {}).get(loc); t[team] = (t[team] || 0) + 1;
+    if (seen.has(name + '|' + loc)) return; seen.add(name + '|' + loc);
+    if (!S.locOf.has(name)) S.locOf.set(name, loc);
+    const info = (typeof equipInfo === 'function') ? equipInfo(name) : null;
+    const u = emNorm(info && info.unit), a = emNorm(info && info.area);
+    bump(S.all, '*', loc);
+    if (a) { bump(S.byArea, a, loc); if (u) bump(S.byUA, u + '|' + a, loc); }
+    bump(S.byFam, emFamilyOf(name), loc);
+  });
+  _emLocCache = { t: Date.now(), S };
+  return S;
+}
+function emLocGroups(ref) {
+  const S = emLocStats(), u = emNorm(ref.unit), a = emNorm(ref.area), fam = String(ref.family || '').toUpperCase(), groups = [], used = new Set();
+  if (ref.clone && S.locOf.get(ref.clone)) { const l = S.locOf.get(ref.clone); used.add(l); groups.push({ title: 'Same as the machine you copied — ' + ref.clone, items: [{ loc: l, n: 0 }] }); }
+  const take = (title, map) => {
+    if (!map) return;
+    const items = Array.from(map.entries()).sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).filter(e => !used.has(e[0]));
+    if (!items.length) return;
+    items.forEach(e => used.add(e[0]));
+    groups.push({ title, items: items.map(e => ({ loc: e[0], n: e[1] })) });
+  };
+  take('Same unit & area' + (ref.unit && ref.area ? ' (' + ref.unit + ' · ' + ref.area + ')' : ''), u && a ? S.byUA.get(u + '|' + a) : null);
+  take('Same area' + (ref.area ? ' (' + ref.area + ')' : ''), a ? S.byArea.get(a) : null);
+  take('Same family' + (fam ? ' (' + fam + ')' : ''), fam ? S.byFam.get(fam) : null);
+  take('All other locations', S.all.get('*'));
+  return groups;
+}
+function emTeamAt(loc) {   // the group that visits this location most
+  const t = emLocStats().teamAt.get(loc); if (!t) return '';
+  return Object.keys(t).sort((x, y) => t[y] - t[x])[0];
+}
+function emAutoLoc(s, ref) {   // pre-select the best location (and its usual team) until the admin picks one
+  if (s._locTouched) return;
+  const g = emLocGroups(ref), first = g.length && g[0].items[0];
+  s.loc = first ? first.loc : '';
+  if (!s._teamTouched && s.loc) { const tm = emTeamAt(s.loc); if (tm) s.team = tm; }
+}
+const emLocRef = a => ({ unit: a.unit, area: a.area, family: String(a.family || '').trim() || (a.name ? EM_BASE_FAMILY(a.name) : ''), name: a.name, clone: a.clone });
+function emLocRefEdit(name) {
+  const m = emMaster(name) || {}, d = (EM.draft && EM.orig === name) ? EM.draft : {};
+  return { unit: d.unit != null ? d.unit : m.unit, area: d.area != null ? d.area : m.area, family: emFamilyOf(name), name, clone: '' };
+}
+function emNewSch(name) {
+  const si = emScheduleInfoFor(name);
+  const s = { freqCode: 'F', team: (si && si.team) || 'Precise', loc: (si && si.loc) || '', locOther: '', start: 'current', _locTouched: !!(si && si.loc), _teamTouched: !!si };
+  if (!s.loc) emAutoLoc(s, emLocRefEdit(name));
+  return s;
+}
+function emLocSelectHtml(s, ctx, ref) {
+  const groups = emLocGroups(ref), have = new Set();
+  let o = '<option value="">— choose a location —</option>';
+  groups.forEach(g => { o += `<optgroup label="${escHtml(g.title)}">` + g.items.map(it => { have.add(it.loc); return `<option value="${escHtml(it.loc)}"${s.loc === it.loc ? ' selected' : ''}>${escHtml(it.loc)}${it.n ? ' — ' + it.n + ' machine' + (it.n === 1 ? '' : 's') : ''}</option>`; }).join('') + '</optgroup>'; });
+  if (s.loc && s.loc !== '__other' && !have.has(s.loc)) o += `<option value="${escHtml(s.loc)}" selected>${escHtml(s.loc)} (current)</option>`;
+  o += `<option value="__other"${s.loc === '__other' ? ' selected' : ''}>Other — type a new location code…</option>`;
+  return `<select data-ctx="${ctx}" data-s="loc">${o}</select>` +
+    (s.loc === '__other' ? `<input data-ctx="${ctx}" data-s="locOther" value="${escHtml(s.locOther || '')}" placeholder="e.g. A2" style="margin-top:4px">` : '');
+}
+// frequency + location + team + start choice — shared by "Add equipment" and "Add an unscheduled machine to the schedule"
+function emSchedBoxHtml(s, ctx, ref, allowNone) {
+  const E = window.VibeEngine, labels = (typeof smTeamLabels === 'function') ? smTeamLabels() : (E ? E.TEAM_LABEL : {});
+  const none = allowNone && s.freqCode === 'N';
+  let h = `<div class="em-grid" style="margin-bottom:4px"><div class="em-fg"><label>Reading frequency${allowNone ? '' : ' (required)'}</label><select data-ctx="${ctx}" data-s="freqCode">` +
+    EM_FREQ.map(f => `<option value="${f.code}"${s.freqCode === f.code ? ' selected' : ''}>${f.text}</option>`).join('') +
+    (allowNone ? `<option value="N"${none ? ' selected' : ''}>Not scheduled — no frequency</option>` : '') + '</select></div>';
+  if (!none) {
+    h += `<div class="em-fg"><label>Location</label>${emLocSelectHtml(s, ctx, ref)}<div class="em-sub">Suggested from machines with the same unit &amp; area, the same family, or the one you copied. Machines in one location are visited together.</div></div>`;
+    h += `<div class="em-fg"><label>Team</label><select data-ctx="${ctx}" data-s="team">${(E ? E.TEAMS : ['Precise', 'CB', 'CBA']).map(t => `<option value="${t}"${s.team === t ? ' selected' : ''}>${escHtml(labels[t] || t)}</option>`).join('')}</select></div>`;
+  }
+  h += '</div>';
+  h += none
+    ? '<div class="em-sub">This machine is added for Data Entry and History only. It will <b>not</b> appear in the Daily Schedule and has no reading frequency.</div>'
+    : `<div class="em-modes" style="font-size:12.5px;line-height:1.5">
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="radio" name="em-start-${ctx}" data-ctx="${ctx}" data-s="start" value="current"${s.start === 'current' ? ' checked' : ''}> <span><b>Include in the current month</b> — placed on the last free days that are still ahead, then the regular schedule from next month.</span></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="radio" name="em-start-${ctx}" data-ctx="${ctx}" data-s="start" value="next"${s.start === 'next' ? ' checked' : ''}> <span><b>Start from next month</b> — same as any other frequency change.</span></label>
+      </div>`;
+  return h;
+}
+function emRefreshSchedBox(ctx) {
+  if (ctx === 'add') { const b = document.getElementById('em-sched-box'); if (b && EM.add) b.innerHTML = emSchedBoxHtml(EM.add, 'add', emLocRef(EM.add), true); }
+  else if (ctx === 'sch') { const b = document.getElementById('em-edit-sched'); if (b) b.innerHTML = emEditSchedHtml(); }
+}
+
+function emNewAdd() { return Object.assign(emBlankDraft(), { clone: '', freqCode: 'F', team: 'Precise', loc: '', locOther: '', start: 'current', _locTouched: false, _teamTouched: false }); }
 function emAddTabHtml() {
   if (!EM.add) EM.add = emNewAdd();
-  const a = EM.add, E = window.VibeEngine, labels = (typeof smTeamLabels === 'function') ? smTeamLabels() : (E ? E.TEAM_LABEL : {});
-  const locs = emLocations();
-  return `<div class="em-note">Best way to add a machine: <b>start from a similar one</b> (it copies unit, area, points, parameters, limits, speed, family and where it is scheduled), then change the name and whatever differs.</div>
+  const a = EM.add;
+  return `<div class="em-note">Best way to add a machine: <b>start from a similar one</b> (it copies unit, area, points, parameters, limits, speed, family and where it is scheduled), then change the name and whatever differs. You can also add a machine <b>without any schedule</b>.</div>
     <div class="em-split"><div class="em-list"><input type="search" id="em-cq" placeholder="Find a similar machine to copy…" autocomplete="off" value="${escHtml(EM.cloneQ || '')}"><div id="em-clone-items"></div></div>
     <div class="em-form"><div class="em-h">New equipment${a.clone ? ' — copied from <i>' + escHtml(a.clone) + '</i>' : ''}</div>
       ${emFieldsHtml(a, 'add')}
       <div class="em-lim"><div class="em-h">Reading frequency &amp; schedule</div>
-        <div class="em-grid" style="margin-bottom:4px">
-          <div class="em-fg"><label>Frequency (required)</label><select data-ctx="add" data-s="freqCode">${EM_FREQ.map(f => `<option value="${f.code}"${a.freqCode === f.code ? ' selected' : ''}>${f.text}</option>`).join('')}</select></div>
-          <div class="em-fg"><label>Team</label><select data-ctx="add" data-s="team">${(E ? E.TEAMS : ['Precise', 'CB', 'CBA']).map(t => `<option value="${t}"${a.team === t ? ' selected' : ''}>${escHtml(labels[t] || t)}</option>`).join('')}</select></div>
-          <div class="em-fg"><label>Location code</label><input data-ctx="add" data-s="loc" list="em-locs" value="${escHtml(a.loc)}" placeholder="e.g. A2"><datalist id="em-locs">${locs.map(l => `<option value="${escHtml(l)}">`).join('')}</datalist><div class="em-sub">Machines in the same location are visited together.</div></div>
-        </div>
-        <div class="em-modes" style="font-size:12.5px;line-height:1.5">
-          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="radio" name="em-start" data-s="start" value="current"${a.start === 'current' ? ' checked' : ''}> <span><b>Include in the current month</b> — placed on the last free days that are still ahead, then the regular schedule from next month.</span></label>
-          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="radio" name="em-start" data-s="start" value="next"${a.start === 'next' ? ' checked' : ''}> <span><b>Start from next month</b> — same as any other frequency change.</span></label>
-        </div>
+        <div id="em-sched-box">${emSchedBoxHtml(a, 'add', emLocRef(a), true)}</div>
       </div>
       <div id="em-placement">${EM.place ? emPlacementHtml() : ''}</div>
       <div class="em-row"><button class="btn btn-primary" data-em="preview"${EM.busy ? ' disabled' : ''}>👁 Preview placement</button><button class="btn btn-green" data-em="addconfirm"${EM.busy ? ' disabled' : ''}>➕ Add equipment</button><button class="btn" data-em="addreset">Clear form</button></div>
@@ -590,7 +681,11 @@ function emCloneFrom(name) {
   const m = emMaster(name); if (!m) return;
   const d = emDraftFrom(m), si = emScheduleInfoFor(name), a = EM.add || emNewAdd();
   Object.assign(a, d, { name: '', clone: name, family: emFamilyOf(name) === EM_BASE_FAMILY(name) ? '' : emFamilyOf(name) });
-  if (si) { a.team = si.team || a.team; a.loc = si.loc || a.loc; a.freqCode = si.freq || emFreqCodeFromWord(m.frequency); } else a.freqCode = emFreqCodeFromWord(m.frequency);
+  a._locTouched = false; a._teamTouched = false; a.locOther = '';
+  a.freqCode = (si && si.freq) || emFreqCodeFromWord(m.frequency);
+  if (si && si.loc) { a.loc = si.loc; a._locTouched = true; }
+  if (si && si.team) { a.team = si.team; a._teamTouched = true; }
+  if (!a._locTouched) { a.loc = ''; emAutoLoc(a, emLocRef(a)); }
   EM.add = a; EM.place = null; emRender();
   const cq = document.getElementById('em-cq'); if (cq) cq.value = name;
   const nm = document.querySelector('[data-ctx="add"][data-f="name"]'); if (nm) nm.focus();
@@ -598,6 +693,7 @@ function emCloneFrom(name) {
 function emPlacementHtml() {
   const P = EM.place; if (!P) return '';
   if (!P.ok) return `<div class="em-msg err">${escHtml(P.reason)}</div>`;
+  if (P.none) return '<div class="em-prev"><div class="em-h">Schedule</div><div class="em-sub">Not scheduled — the machine is added to the equipment list only.</div></div>';
   return `<div class="em-prev"><div class="em-h">Where it will be scheduled</div>${P.notes.map(n => `<div class="em-sub em-warn">${escHtml(n)}</div>`).join('')}` +
     P.plans.map(p => {
       const teams = (typeof smTeamLabels === 'function') ? smTeamLabels() : window.VibeEngine.TEAM_LABEL;
@@ -613,7 +709,7 @@ function emPreview() {
 function emRefreshPlacement() { const b = document.getElementById('em-placement'); if (b) b.innerHTML = emPlacementHtml(); }
 function emAddProblems(a) {
   const r = emResolveDraft(a, null), p = r.errors.slice();
-  if (!String(a.loc || '').trim()) p.push('Location code is required (machines in the same location are visited together).');
+  if (a.freqCode !== 'N' && !emEffLoc(a)) p.push('Choose a location (machines in the same location are visited together) — or set the frequency to "Not scheduled".');
   return p;
 }
 async function emAddConfirm() {
@@ -622,12 +718,15 @@ async function emAddConfirm() {
   if (problems.length) return emSay('Please fix:\n• ' + problems.join('\n• '), 'err');
   const r = emResolveDraft(a, null), plan = emBuildPlans(a);
   if (!plan.ok) return emSay('⚠️ ' + plan.reason, 'err');
-  const f = emFreqOf(a.freqCode);
-  if (!confirm('Add "' + r.name + '" (' + f.word + ', team ' + a.team + ', location ' + a.loc + ')?\n\n' + plan.plans.map(p => '• ' + p.label + ': ' + p.visits.length + ' visit(s)').join('\n') + (plan.notes.length ? '\n\n' + plan.notes.join('\n') : '') + '\n\nNothing can be deleted from the app afterwards, only edited.')) return;
+  const none = a.freqCode === 'N', f = none ? null : emFreqOf(a.freqCode), loc = emEffLoc(a);
+  const ask = none
+    ? 'Add "' + r.name + '" WITHOUT a schedule?\n\nIt will be available in Data Entry and History but will not appear in the Daily Schedule.\n\nNothing can be deleted from the app afterwards, only edited.'
+    : 'Add "' + r.name + '" (' + f.word + ', team ' + a.team + ', location ' + loc + ')?\n\n' + plan.plans.map(p => '• ' + p.label + ': ' + p.visits.length + ' visit(s)').join('\n') + (plan.notes.length ? '\n\n' + plan.notes.join('\n') : '') + '\n\nNothing can be deleted from the app afterwards, only edited.';
+  if (!confirm(ask)) return;
   EM.busy = true; emSay('⏳ Adding…', 'info');
   let masterDone = false, steps = [];
   try {
-    const row = { name: r.name, unit: r.unit, area: r.area, dept: r.dept, rpm: r.rpm, frequency: f.word, points: r.points, params: r.params, limits: r.limits };
+    const row = { name: r.name, unit: r.unit, area: r.area, dept: r.dept, rpm: r.rpm, frequency: f ? f.word : null, points: r.points, params: r.params, limits: r.limits };
     if (r.category) row.category = r.category;
     if (r.family) row.family = r.family;
     let dropped = [];
@@ -640,21 +739,24 @@ async function emAddConfirm() {
     }
     masterDone = true; steps.push('Added to the equipment master.');
     if (dropped.length) steps.push('⚠️ Not saved (database column missing): ' + dropped.join(', ') + '. ' + EM_SQL_FIX);
-    const rule = await _supabase.from('schedule_rules').upsert([{ scope: 'equipment', target: r.name, frequency: f.label, updated_by: emUser() }], { onConflict: 'scope,target' });
-    if (rule.error) steps.push('⚠️ Frequency rule not saved (' + rule.error.message + ') — set it in the Schedule Manager.'); else steps.push('Frequency rule saved (' + f.word + ').');
-    const written = [];
-    for (const p of plan.plans) {
-      const rows = await emWriteVisits(p, r.name);
-      written.push({ from: p.from, label: p.label, rows: rows.length });
-      steps.push('Schedule: ' + p.label + ' — ' + p.visits.length + ' visit(s).');
+    let scheduleLog = [];
+    if (none) {
+      steps.push('Not scheduled (no frequency, not in the Daily Schedule).');
+    } else {
+      const rule = await _supabase.from('schedule_rules').upsert([{ scope: 'equipment', target: r.name, frequency: f.label, updated_by: emUser() }], { onConflict: 'scope,target' });
+      if (rule.error) steps.push('⚠️ Frequency rule not saved (' + rule.error.message + ') — set it in the Schedule Manager.'); else steps.push('Frequency rule saved (' + f.word + ').');
+      for (const p of plan.plans) {
+        const rows = await emWriteVisits(p, r.name);
+        steps.push('Schedule: ' + p.label + ' — ' + p.visits.length + ' visit(s).');
+      }
+      try { await _supabase.from('schedule_runs').insert([{ effective_from: plan.plans[0].from, generated_by: emUser(), mode: 'add-equipment', readings_per_month: window.VibeEngine.ROUNDS_OF[a.freqCode], equipment_changed: 1, summary: { added: r.name, team: a.team, loc: loc, frequency: f.label } }]); } catch (e) {}
+      const teamLabels = (typeof smTeamLabels === 'function') ? smTeamLabels() : window.VibeEngine.TEAM_LABEL;
+      const steady = plan.plans.find(p => !/^This month/.test(p.label)) || plan.plans[0];
+      scheduleLog = steady.visits.map((v, i) => ({ team: teamLabels[v.team] || v.team, day: v.day, loc: v.loc, freq: f.label, rotation: (i + 1) + ' of ' + steady.visits.length }));
     }
-    try { await _supabase.from('schedule_runs').insert([{ effective_from: plan.plans[0].from, generated_by: emUser(), mode: 'add-equipment', readings_per_month: window.VibeEngine.ROUNDS_OF[a.freqCode], equipment_changed: 1, summary: { added: r.name, team: a.team, loc: a.loc, frequency: f.label } }]); } catch (e) {}
-    const teamLabels = (typeof smTeamLabels === 'function') ? smTeamLabels() : window.VibeEngine.TEAM_LABEL;
-    const steady = plan.plans.find(p => !/^This month/.test(p.label)) || plan.plans[0];
     await emLog('add', r.name, {
-      row: { unit: r.unit, area: r.area, dept: r.dept, category: r.category, rpm: r.rpm, frequencyDays: f.days, frequency: f.word, points: r.points, params: r.params, limits: r.limits, family: r.family },
-      schedule: steady.visits.map((v, i) => ({ team: teamLabels[v.team] || v.team, day: v.day, loc: v.loc, freq: f.label, rotation: (i + 1) + ' of ' + steady.visits.length })),
-      cloneOf: a.clone || null
+      row: { unit: r.unit, area: r.area, dept: r.dept, category: r.category, rpm: r.rpm, frequencyDays: f ? f.days : null, frequency: f ? f.word : null, points: r.points, params: r.params, limits: r.limits, family: r.family },
+      schedule: scheduleLog, cloneOf: a.clone || null
     });
     await emRefreshAll(false); try { await fetchVibeSchedule(); dsRender(); } catch (e) {}
     EM.add = null; EM.place = null; EM.busy = false;
@@ -662,8 +764,61 @@ async function emAddConfirm() {
   } catch (e) {
     EM.busy = false;
     if (masterDone) { try { await emRefreshAll(false); await fetchVibeSchedule(); } catch (e2) {} }
-    emSay('⚠️ ' + (masterDone ? 'The equipment WAS added to the master, but a later step failed:\n' : 'Nothing was added:\n') + emErrText(e) + (masterDone ? '\nFix the cause, then place it with the Schedule Manager (its frequency rule is already saved if the step above says so).' : '') + (steps.length ? '\n\nDone so far: ' + steps.join(' ') : ''), 'err');
+    emSay('⚠️ ' + (masterDone ? 'The equipment WAS added to the master, but a later step failed:\n' : 'Nothing was added:\n') + emErrText(e) + (masterDone ? '\nFix the cause, then place it from the Edit tab ("Add to schedule") or the Schedule Manager.' : '') + (steps.length ? '\n\nDone so far: ' + steps.join(' ') : ''), 'err');
   }
+}
+
+/* ───────── Edit tab: schedule location, and scheduling a machine that is not in the schedule yet ───────── */
+function emEditSchedHtml() {
+  const name = EM.orig; if (!name || !EM.sch) return '';
+  const ref = emLocRefEdit(name);
+  if (emScheduledNames().has(name)) {
+    return `<div class="em-fam"><b>Schedule location:</b>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-top:6px"><div style="min-width:240px;flex:1">${emLocSelectHtml(EM.sch, 'sch', ref)}</div><button class="btn btn-sm" data-em="setloc"${EM.busy ? ' disabled' : ''}>📍 Update location</button></div>
+      <div class="em-sub" style="margin-top:4px">Moves this machine to that location in the Daily Schedule for every month. Needs <code>supabase/admin_features_v2.sql</code>.</div></div>`;
+  }
+  return `<div class="em-fam"><b>This machine is not in the schedule.</b> <span class="em-sub">Choose how often and where it should be read to add it.</span>
+    <div style="margin-top:8px">${emSchedBoxHtml(EM.sch, 'sch', ref, false)}</div>
+    <div class="em-row"><button class="btn btn-green btn-sm" data-em="schedexisting"${EM.busy ? ' disabled' : ''}>📅 Add to schedule</button></div></div>`;
+}
+async function emSetLocation() {
+  if (EM.busy || !EM.orig || !EM.sch) return;
+  const name = EM.orig, loc = emEffLoc(EM.sch);
+  if (!loc) return emSay('Choose a location first.', 'err');
+  if (!confirm('Move "' + name + '" to location ' + loc + ' in the Daily Schedule (every month)?\n\nAlso queued in the Office SQL tab for your VibeMonDB.')) return;
+  EM.busy = true; emSay('⏳ Updating location…', 'info');
+  try {
+    const { data, error } = await _supabase.rpc('set_equipment_location', { p_name: name, p_loc: loc, p_by: emUser() });
+    if (error) throw error;
+    try { await fetchVibeSchedule(); } catch (e) {} try { dsRender(); } catch (e) {}
+    EM.changesLoaded = false; EM.busy = false;
+    emSay('✅ ' + name + ' is now at location ' + loc + ' — ' + data.schedule_rows + ' schedule row(s) updated' + (data.catchups ? ', ' + data.catchups + ' catch-up(s)' : '') + '.', 'ok');
+  } catch (e) { EM.busy = false; emSay('⚠️ ' + emErrText(e) + ' ' + (/function|schema cache/i.test((e && e.message) || '') ? '' : ''), 'err'); }
+}
+async function emScheduleExisting() {
+  if (EM.busy || !EM.orig || !EM.sch) return;
+  const name = EM.orig, s = EM.sch, loc = emEffLoc(s);
+  if (!loc) return emSay('Choose a location first.', 'err');
+  const a = { name, loc: s.loc, locOther: s.locOther, team: s.team, freqCode: s.freqCode, start: s.start };
+  const plan = emBuildPlans(a);
+  if (!plan.ok) return emSay('⚠️ ' + plan.reason, 'err');
+  const f = emFreqOf(s.freqCode), teams = (typeof smTeamLabels === 'function') ? smTeamLabels() : window.VibeEngine.TEAM_LABEL;
+  const lines = plan.plans.map(p => '• ' + p.label + ': ' + p.visits.map(v => emFmtDay(dsWDDate(p.y, p.m, v.day)) + ' (' + (teams[v.team] || v.team) + ')').join(', '));
+  if (!confirm('Add "' + name + '" to the schedule (' + f.word + ', location ' + loc + ')?\n\n' + lines.join('\n') + (plan.notes.length ? '\n\n' + plan.notes.join('\n') : ''))) return;
+  EM.busy = true; emSay('⏳ Adding to schedule…', 'info');
+  const steps = [];
+  try {
+    const up = await emUpdateMaster({ frequency: f.word }, q => q.eq('name', name));
+    steps.push('Frequency saved (' + f.word + ').');
+    const rule = await _supabase.from('schedule_rules').upsert([{ scope: 'equipment', target: name, frequency: f.label, updated_by: emUser() }], { onConflict: 'scope,target' });
+    if (rule.error) steps.push('⚠️ Frequency rule not saved (' + rule.error.message + ').');
+    for (const p of plan.plans) { await emWriteVisits(p, name); steps.push('Schedule: ' + p.label + ' — ' + p.visits.length + ' visit(s).'); }
+    const steady = plan.plans.find(p => !/^This month/.test(p.label)) || plan.plans[0];
+    await emLog('edit', name, { targets: [name], changes: { frequency: f.word, frequencyDays: f.days }, schedule: steady.visits.map((v, i) => ({ team: teams[v.team] || v.team, day: v.day, loc: v.loc, freq: f.label, rotation: (i + 1) + ' of ' + steady.visits.length })) });
+    await emRefreshAll(false); try { await fetchVibeSchedule(); dsRender(); } catch (e) {}
+    EM.draft = emDraftFrom(emMaster(name)); EM.sch = emNewSch(name); EM.busy = false;
+    emSay('✅ ' + name + ' is now scheduled.\n' + steps.join('\n'), 'ok'); emRenderList();
+  } catch (e) { EM.busy = false; emSay('⚠️ ' + emErrText(e) + (steps.length ? '\n\nDone so far: ' + steps.join(' ') : ''), 'err'); }
 }
 
 /* ───────────────────────── FAMILIES tab ───────────────────────── */
@@ -754,13 +909,20 @@ function emOfficeSql(list) {
       if (ch.points !== undefined) sets.push('Points = ' + emSqlStr((ch.points || []).join(', ')));
       if (ch.params !== undefined) sets.push('Params = ' + emSqlStr((ch.params || []).join(', ')));
       if (ch.limits !== undefined) sets.push('LimitsRaw = ' + (ch.limits ? emSqlStr(emLimitsRawText(ch.limits)) : 'NULL'));
+      if (ch.frequencyDays !== undefined) sets.push('Frequency = ' + (ch.frequencyDays == null ? 'NULL' : ch.frequencyDays));
       if (sets.length) L.push(`UPDATE ${master} SET ${sets.join(', ')} WHERE Name IN (${inList});`);
       ['dept', 'category'].forEach(col => { if (ch[col] !== undefined) guarded(col, ch[col], `Name IN (${inList})`, ix).forEach(x => L.push(x)); });
       if (ch.family !== undefined) L.push('-- (family is an app-only grouping — there is no SQL Server column for it)');
+      if (ch.location !== undefined) L.push(`UPDATE dbo.VibeMon_Schedule SET Location = ${emSqlStr(ch.location)} WHERE Equipment IN (${inList});`);
+      if ((d.schedule || []).length) {
+        const mm = emMaster(c.equipment) || {};
+        L.push('-- Optional: only if the plant dashboard also uses dbo.VibeMon_Schedule (the app keeps monthly versions of its own).');
+        d.schedule.forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${emSqlStr(c.equipment)}, ${emSqlStr(mm.unit)}, ${emSqlStr(mm.area)}, ${emSqlStr(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
+      }
     } else if (c.action === 'add') {
       const r = d.row || {}, nm = emSqlStr(c.equipment);
       const cols = 'Unit, Area, Name, RPM, LimitsRaw, Points, Frequency, Params';
-      const vals = `${emSqlStr(r.unit)}, ${emSqlStr(r.area)}, ${nm}, ${r.rpm == null ? 'NULL' : r.rpm}, ${r.limits ? emSqlStr(emLimitsRawText(r.limits)) : 'NULL'}, ${emSqlStr((r.points || []).join(', '))}, ${r.frequencyDays || 15}, ${emSqlStr((r.params || []).join(', '))}`;
+      const vals = `${emSqlStr(r.unit)}, ${emSqlStr(r.area)}, ${nm}, ${r.rpm == null ? 'NULL' : r.rpm}, ${r.limits ? emSqlStr(emLimitsRawText(r.limits)) : 'NULL'}, ${emSqlStr((r.points || []).join(', '))}, ${r.frequencyDays == null ? 'NULL' : r.frequencyDays}, ${emSqlStr((r.params || []).join(', '))}`;
       L.push(`IF NOT EXISTS (SELECT 1 FROM ${master} WHERE Name = ${nm})`, 'BEGIN',
         `  DECLARE @sno${ix} int = (SELECT ISNULL(MAX(TRY_CAST(SNo AS int)), 0) + 1 FROM ${master});`,
         `  IF COLUMNPROPERTY(OBJECT_ID('${master}'), 'SNo', 'IsIdentity') = 1`,
@@ -770,6 +932,15 @@ function emOfficeSql(list) {
       ['dept', 'category'].forEach(col => { if (r[col]) guarded(col, r[col], `Name = ${nm}`, ix).forEach(x => L.push(x)); });
       L.push('-- Optional: only if the plant dashboard also uses dbo.VibeMon_Schedule (this is the regular-month pattern; the app keeps monthly versions of its own).');
       (d.schedule || []).forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${nm}, ${emSqlStr(r.unit)}, ${emSqlStr(r.area)}, ${emSqlStr(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
+    }
+    if (c.action === 'rec_add') {
+      const tx = emSqlStr(c.equipment);
+      L.push(`IF NOT EXISTS (SELECT 1 FROM dbo.VibeMon_RecommendationsMaster WHERE Recommendation = ${tx})`,
+        `  INSERT INTO dbo.VibeMon_RecommendationsMaster (Category, Recommendation) VALUES ((SELECT TOP 1 Category FROM dbo.VibeMon_RecommendationsMaster GROUP BY Category ORDER BY COUNT(*) DESC), ${tx});`);
+    } else if (c.action === 'rec_edit') {
+      L.push(`UPDATE dbo.VibeMon_RecommendationsMaster SET Recommendation = ${emSqlStr(c.equipment)} WHERE Recommendation = ${emSqlStr(c.old_name)};`);
+    } else if (c.action === 'rec_delete') {
+      L.push(`DELETE FROM dbo.VibeMon_RecommendationsMaster WHERE Recommendation = ${emSqlStr(c.equipment)};`);
     }
     L.push('');
   });
@@ -808,6 +979,8 @@ async function emMarkApplied() {
     else if (a === 'revert') { const m = emMaster(EM.orig); if (m) { EM.draft = emDraftFrom(m); EM.applyFam = {}; const ed = document.getElementById('em-editor'); if (ed) ed.innerHTML = emEditorHtml(); } }
     else if (a === 'preview') emPreview();
     else if (a === 'addconfirm') emAddConfirm();
+    else if (a === 'setloc') emSetLocation();
+    else if (a === 'schedexisting') emScheduleExisting();
     else if (a === 'addreset') { EM.add = null; EM.place = null; emRender(); }
     else if (a === 'merge') emMerge(i);
     else if (a === 'joinhint') emJoinHint(i);
@@ -823,12 +996,22 @@ async function emMarkApplied() {
     if (t.id === 'em-fq') { EM.famQ = t.value; const pos = t.selectionStart; emRender(); const el = document.getElementById('em-fq'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } return; }
     if (t.hasAttribute('data-apf')) { EM.applyFam[t.getAttribute('data-apf')] = t.checked; return; }
     if (!ctx) return;
-    const d = ctx === 'add' ? EM.add : EM.draft; if (!d) return;
-    if (t.hasAttribute('data-f')) d[t.getAttribute('data-f')] = t.value;
+    const d = ctx === 'add' ? EM.add : ctx === 'sch' ? EM.sch : EM.draft; if (!d) return;
+    if (t.hasAttribute('data-f')) {
+      const fld = t.getAttribute('data-f'); d[fld] = t.value;
+      if (ctx === 'add' && ['name', 'unit', 'area', 'family'].indexOf(fld) >= 0) { emAutoLoc(d, emLocRef(d)); emRefreshSchedBox('add'); }   // location suggestions follow the unit / area / family typed
+      else if (ctx === 'edit' && (fld === 'unit' || fld === 'area') && EM.sch && !emScheduledNames().has(EM.orig)) { emAutoLoc(EM.sch, emLocRefEdit(EM.orig)); emRefreshSchedBox('sch'); }
+    }
     else if (t.hasAttribute('data-l')) d.lim[t.getAttribute('data-l')] = t.value;
     else if (t.hasAttribute('data-p')) { const p = t.getAttribute('data-p'), i = d.params.indexOf(p); if (t.checked && i < 0) d.params.push(p); if (!t.checked && i >= 0) d.params.splice(i, 1); }
-    else if (t.hasAttribute('data-s')) { d[t.getAttribute('data-s')] = t.value; if (EM.place) { EM.place = null; emRefreshPlacement(); } }
-    emRefreshPreviews(ctx);
+    else if (t.hasAttribute('data-s')) {
+      const k = t.getAttribute('data-s'); d[k] = t.value;
+      if (k === 'loc') { d._locTouched = true; if (!d._teamTouched && t.value && t.value !== '__other') { const tm = emTeamAt(t.value); if (tm) d.team = tm; } emRefreshSchedBox(ctx); }
+      else if (k === 'team') d._teamTouched = true;
+      else if (k === 'freqCode') emRefreshSchedBox(ctx);
+      if (ctx === 'add' && EM.place) { EM.place = null; emRefreshPlacement(); }
+    }
+    if (ctx !== 'sch') emRefreshPreviews(ctx);
   };
   body.addEventListener('input', onField);
   body.addEventListener('change', onField);

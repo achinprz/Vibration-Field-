@@ -91,6 +91,7 @@ async function fetchAppSettings() {
   }
   applyAIVisibility();
   syncAIOperatorToggle();
+  try { aiWarmUp(); } catch(e) {}
   return true;
 }
 function refreshAIVisibility() { applyAIVisibility(); return fetchAppSettings(); }
@@ -140,9 +141,17 @@ function aggregateEntryReadingsForAI() {
   return { H_Vel:h_vel, V_Vel:v_vel, A_Vel:a_vel, Acc:acc, H_Dis:h_dis, V_Dis:v_dis, A_Dis:a_dis };
 }
 
-// Up to AI_MAX_RECS distinct actions for this session: the model's pick first, then the
-// rule-based actions that the readings triggered (the API joins several with " | "), then the
-// bearing action from acceleration. Duplicates (same text, any spacing/case) are dropped.
+// Up to AI_MAX_RECS distinct actions for this session.
+// Current service: it returns them ready-made in r.recommendations (bearing action, then every action the readings
+// trigger, then the model's own pick). Older service versions returned only ONE action whenever acceleration was >= 1.0 g
+// (the bearing rule overwrote the rest), even though r.diagnostics named several causes — so for those we rebuild the
+// missing actions from the diagnostics text, using the same rule texts as the plant trainer.
+const AI_DIAG_ACTIONS = [
+  [/bearing wear|gear tooth defect/i, 'Inspect and lubricate DE & NDE bearings. Replace bearing if wear/clearance is excessive.'],
+  [/misalignment/i, 'Check and correct shaft/coupling alignment. Tighten coupling bolts.'],
+  [/unbalance|fouling|cavitation/i, 'Inspect rotor/impeller for material build-up, erosion, or mechanical damage. Perform dynamic balancing.'],
+  [/foundation looseness|resonance/i, 'Check and tighten foundation anchor bolts, baseplate mountings, and support structures.']
+];
 function collectAIRecommendations(r) {
   const out = [], seen = new Set();
   const add = t => {
@@ -150,12 +159,53 @@ function collectAIRecommendations(r) {
     const k = t.toLowerCase().replace(/\s+/g, ' ');
     if (t && !seen.has(k)) { seen.add(k); out.push(t); }
   };
-  add(r.predicted_recommendation);
-  String(r.universal_recommendation || '').split('|').forEach(add);
+  if (Array.isArray(r.recommendations) && r.recommendations.length) {
+    r.recommendations.forEach(add);
+    return out.slice(0, AI_MAX_RECS);
+  }
   add(r.bearing_action);
+  const diag = String(r.diagnostics || '');
+  if (!/^Anomalous - .*decoupled|solo run/i.test(diag)) {
+    AI_DIAG_ACTIONS.forEach(([rx, action], i) => {
+      if (i === 0 && r.bearing_action) return;      // the bearing action above already covers bearing wear
+      if (rx.test(diag)) add(action);
+    });
+  }
+  String(r.universal_recommendation || '').split('|').forEach(add);
+  add(r.predicted_recommendation);
   return out.slice(0, AI_MAX_RECS);
 }
 
+// The free cloud plan puts the AI server to sleep after ~15 idle minutes and waking it takes up to 1–2 minutes.
+// So: (1) wake it in the background as soon as an allowed user is signed in / opens step 3, and (2) before a real
+// request, wake it explicitly by retrying the tiny /health call (with a live counter) instead of one long request
+// that can time out.
+let _aiLastAwake = 0, _aiWarming = false;
+const AI_AWAKE_MS = 8 * 60 * 1000;
+async function aiPing(timeoutMs) {
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(getAIServiceUrl() + '/health', { signal: ctrl.signal, cache: 'no-store' });
+    if (res.ok) { _aiLastAwake = Date.now(); return true; }
+  } catch(e) { /* asleep, starting, or offline — the caller retries */ }
+  finally { clearTimeout(timer); }
+  return false;
+}
+function aiWarmUp() {
+  if (_aiWarming || !getAIServiceUrl() || !aiVisibleForCurrentUser() || !navigator.onLine) return;
+  if (Date.now() - _aiLastAwake < AI_AWAKE_MS) return;
+  _aiWarming = true;
+  aiPing(90000).finally(() => { _aiWarming = false; });
+}
+async function aiWake(maxMs) {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if (Date.now() - _aiLastAwake < AI_AWAKE_MS) return true;
+    if (await aiPing(45000)) return true;
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  return false;
+}
 async function queryAIForWizard() {
   if (!entryEquip) return;
   window._aiAcceptedForSession = false;   // a freshly-fetched suggestion needs its own accept
@@ -173,7 +223,22 @@ async function queryAIForWizard() {
     return;
   }
   if (btn) btn.textContent = '⏳ Analyzing...';
-  if (box) { box.style.display='block'; box.innerHTML = '<div class="alert-box alert-info">⏳ Asking the AI model… (first request after a quiet period can take up to a minute)</div>'; }
+  const say = (cls, html) => { if (box) { box.style.display = 'block'; box.innerHTML = `<div class="alert-box ${cls}">${html}</div>`; } };
+  say('alert-info', '⏳ Contacting the AI server…');
+
+  const t0 = Date.now();
+  const ticker = setInterval(() => {
+    const secs = Math.round((Date.now() - t0) / 1000);
+    if (secs >= 4) say('alert-info', `⏳ Waking up the AI server — the first request after a quiet period takes up to 1–2 minutes (${secs} s)…`);
+  }, 1000);
+  let awake = false;
+  try { awake = await aiWake(150000); } finally { clearInterval(ticker); }
+  if (!awake) {
+    say('alert-warn', '⚠️ The AI server did not wake up in time. Please tap “Get AI Suggestion” again in a minute.');
+    if (btn) btn.textContent = '🤖 Get AI Suggestion';
+    return;
+  }
+  say('alert-info', '⏳ Asking the AI model…');
 
   const agg = aggregateEntryReadingsForAI();
   const payload = {
@@ -186,31 +251,40 @@ async function queryAIForWizard() {
     decoupled: isDecoupledMode() ? 'Yes' : 'No'
   };
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 70000);   // free-tier cold start can take ~50 s
-  try {
-    const res = await fetch(url + '/api/predict', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': getAIServiceKey() },
-      body: JSON.stringify(payload),
-      signal: ctrl.signal
-    });
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.detail || `AI service returned ${res.status}`);
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {   // one retry for a network hiccup or a 5xx while the server settles
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 40000);
+    try {
+      const res = await fetch(url + '/api/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': getAIServiceKey() },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const err = new Error(errBody.error || errBody.detail || `AI service returned ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      const data = await res.json();
+      _aiLastAwake = Date.now();
+      window._lastAISeverity = data.predicted_severity || 'NORMAL';
+      window._lastAIRecommendations = collectAIRecommendations(data);
+      renderAISuggestionBox(data, box);
+      lastErr = null;
+      break;
+    } catch(e) {
+      lastErr = e;
+      if (e.status && e.status < 500) break;        // 4xx (bad key, bad request): retrying cannot help
+      if (attempt === 0) await new Promise(r => setTimeout(r, 3000));
+    } finally {
+      clearTimeout(timer);
     }
-    const data = await res.json();
-    window._lastAISeverity = data.predicted_severity || 'NORMAL';
-    window._lastAIRecommendations = collectAIRecommendations(data);
-    renderAISuggestionBox(data, box);
-  } catch(e) {
-    if (box) box.innerHTML = `<div class="alert-box alert-warn">⚠️ AI suggestion unavailable: ${e.name === 'AbortError' ? 'the service took too long to respond' : e.message}</div>`;
-  } finally {
-    clearTimeout(timer);
-    if (btn) btn.textContent = '🤖 Get AI Suggestion';
   }
+  if (lastErr) say('alert-warn', `⚠️ AI suggestion unavailable: ${lastErr.name === 'AbortError' ? 'the service did not answer in time — please try again' : lastErr.message}`);
+  if (btn) btn.textContent = '🤖 Get AI Suggestion';
 }
-
 const AI_SEV_COLOR = { NORMAL:'#1E8449', ALARM:'#92400E', ALERT:'#9A3412', CRITICAL:'#991B1B' };
 const AI_SEV_SOURCE_LABEL = {
   'model': 'machine learning',
@@ -255,7 +329,7 @@ function applyAISuggestionToWizard() {
   const have = new Set(entryRecs.map(r => String(r.value || '').trim().toLowerCase().replace(/\s+/g, ' ')));
   (window._lastAIRecommendations || []).forEach(t => {
     const k = t.toLowerCase().replace(/\s+/g, ' ');
-    if (!have.has(k)) { entryRecs.push({ type:'manual', value: t }); have.add(k); }
+    if (!have.has(k)) { entryRecs.push({ type:'ai', value: t }); have.add(k); }
   });
   renderRecItems();
   const sevSelect = document.getElementById('s4-sev-override');

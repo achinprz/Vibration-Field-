@@ -22,10 +22,10 @@
 <link rel="stylesheet" href="css/responsive.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-offline.css?v=20260922">
 <link rel="stylesheet" href="css/theme.css?v=20260922">
-<link rel="stylesheet" href="css/daily-schedule.css?v=20260926b">
+<link rel="stylesheet" href="css/daily-schedule.css?v=20260928d">
 <link rel="stylesheet" href="css/autocomplete.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-manager.css?v=20260922">
-<link rel="stylesheet" href="css/equipment-manager.css?v=20260925b">
+<link rel="stylesheet" href="css/equipment-manager.css?v=20260927b">
 <script type="module" src="js/boot/webview-bridge.js?v=20260922"></script>
 </head>
 <body>
@@ -378,11 +378,12 @@
     <div class="card-head" style="background:#EFF6FF">
       <span class="card-title" id="ds-sel-title" style="color:var(--blue-text)">Select a day</span>
       <span id="ds-sel-meta" style="font-size:11px;color:var(--muted)"></span>
+      <button class="btn btn-sm" onclick="document.getElementById('ds-cal').scrollIntoView({behavior:'smooth',block:'center'})" title="Back to the calendar">↑ Calendar</button>
     </div>
     <div class="card-body" style="padding:8px 12px">
       <div id="ds-sel-empty" style="text-align:center;padding:18px;color:var(--muted);font-size:13px">Tap any day on the calendar to see scheduled equipment.</div>
       <div class="tbl-wrap" id="ds-sel-wrap" style="display:none">
-        <table class="ds-equip-tbl"><thead><tr><th>#</th><th>Equipment</th><th>Unit</th><th>Area</th><th>Frequency</th><th>Loc</th><th>Reading Date</th><th>Completed By</th><th>Status</th><th>Action</th></tr></thead><tbody id="ds-sel-body"></tbody></table>
+        <table class="ds-equip-tbl"><thead><tr><th>#</th><th>Equipment</th><th>Loc</th><th>Last Reading</th><th>Completed By</th><th>Reading Date</th><th>Action</th></tr></thead><tbody id="ds-sel-body"></tbody></table>
       </div>
     </div>
   </div>
@@ -590,6 +591,7 @@
     <nav class="ap-nav" id="ap-nav">
       <button class="ap-nav-btn" data-ap="tools"     onclick="apSelect('tools')"><span class="ap-ic">🧰</span><span>Managers</span></button>
       <button class="ap-nav-btn" data-ap="users"     onclick="apSelect('users')"><span class="ap-ic">👥</span><span>Users</span></button>
+      <button class="ap-nav-btn" data-ap="recs"      onclick="apSelect('recs')"><span class="ap-ic">📋</span><span>Recommendations</span></button>
       <button class="ap-nav-btn" data-ap="ai"        onclick="apSelect('ai')"><span class="ap-ic">🤖</span><span>AI service</span></button>
       <button class="ap-nav-btn" data-ap="supabase"  onclick="apSelect('supabase')"><span class="ap-ic">⚡</span><span>Supabase</span></button>
       <button class="ap-nav-btn" data-ap="schedule"  onclick="apSelect('schedule')"><span class="ap-ic">📅</span><span>Schedule upload</span></button>
@@ -604,6 +606,12 @@
           <button class="ap-card" onclick="closeAdminPanel();openEquipmentManager()"><b>🛠 Equipment Manager</b><span>Edit, rename and add equipment, vibration limits, families, and the SQL script for your office database.</span></button>
           <button class="ap-card" onclick="closeAdminPanel();openScheduleManager()"><b>🗓 Schedule Manager</b><span>Change how often equipment or a whole family is read and generate next month's schedule.</span></button>
         </div>
+      </div>
+
+      <div class="ap-pane" data-ap="recs">
+        <div class="ap-title">Standard recommendations</div>
+        <div class="ap-desc">The list offered in Data Entry and Edit Report. Add, edit or delete entries — only admins can change it.</div>
+        <div id="rm-body"></div>
       </div>
 
       <!-- SUPABASE SETTINGS -->
@@ -751,12 +759,12 @@
 <script src="js/data/equipment-master.js?v=20260922"></script>
 <script src="js/data/severity.js?v=20260925"></script>
 <script src="js/data/html-utils.js?v=20260922"></script>
-<script src="js/data/recommendations.js?v=20260922"></script>
-<script src="js/data/data-loader.js?v=20260925"></script>
+<script src="js/data/recommendations.js?v=20260927c"></script>
+<script src="js/data/data-loader.js?v=20260927c"></script>
 <script src="js/core/tabs-filters.js?v=20260926"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
-<script src="js/entry/entry-wizard.js?v=20260926"></script>
-<script src="js/ai/ai-predict.js?v=20260926"></script>
+<script src="js/entry/entry-wizard.js?v=20260927c"></script>
+<script src="js/ai/ai-predict.js?v=20260926d"></script>
 <script src="js/offline/offline-queue.js?v=20260924"></script>
 <script src="js/entry/save-session.js?v=20260924"></script>
 <script src="js/history/history.js?v=20260922"></script>
@@ -765,17 +773,17 @@
 <script src="js/reports/dashboard-pdf.js?v=20260922"></script>
 <script src="js/auth/auth.js?v=20260922"></script>
 <script src="js/admin/data-retention.js?v=20260922"></script>
-<script src="js/admin/admin-panel.js?v=20260925b"></script>
+<script src="js/admin/admin-panel.js?v=20260927"></script>
 <script src="js/history/edit-report.js?v=20260922"></script>
 <script src="js/history/session-actions.js?v=20260922"></script>
-<script src="js/bulk/template-builder.js?v=20260922"></script>
+<script src="js/bulk/template-builder.js?v=20260927c"></script>
 <script src="js/bulk/bulk-upload.js?v=20260922"></script>
 <script src="js/reports/user-report.js?v=20260922"></script>
 <script src="js/share/whatsapp.js?v=20260922"></script>
 <script src="js/exceptions/exceptions.js?v=20260922"></script>
 <script src="js/exceptions/pending-equipment.js?v=20260922"></script>
-<script src="js/schedule/schedule-data.js?v=20260924"></script>
-<script src="js/schedule/daily-schedule.js?v=20260926b"></script>
+<script src="js/schedule/schedule-data.js?v=20260928b"></script>
+<script src="js/schedule/daily-schedule.js?v=20260928c"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
 <script src="js/schedule/monthly-performance.js?v=20260922"></script>
 <script src="js/core/tab-refresh.js?v=20260922"></script>
@@ -785,12 +793,13 @@
 <script src="js/entry/entry-navigation.js?v=20260922"></script>
 <script src="js/schedule/missed-readings.js?v=20260922"></script>
 <script src="js/schedule/schedule-engine.js?v=20260922"></script>
-<script src="js/schedule/dynamic-recovery.js?v=20260924"></script>
+<script src="js/schedule/dynamic-recovery.js?v=20260928b"></script>
 <script src="js/admin/schedule-manager.js?v=20260922"></script>
-<script src="js/admin/equipment-manager.js?v=20260925"></script>
+<script src="js/admin/equipment-manager.js?v=20260927"></script>
+<script src="js/admin/recommendations-manager.js?v=20260927c"></script>
 <script src="js/core/equip-autocomplete.js?v=20260922"></script>
 <script src="js/core/equip-search-setup.js?v=20260922"></script>
-<script src="js/schedule/schedule-search.js?v=20260926"></script>
+<script src="js/schedule/schedule-search.js?v=20260928"></script>
 <script src="js/schedule/daily-panes.js?v=20260926"></script>
 <script src="js/app-init.js?v=20260922"></script>
 

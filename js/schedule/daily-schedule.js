@@ -337,6 +337,7 @@ function dsRender(){
     </div>`;
   }
   cal.innerHTML = html;
+  try { dsFitCalendar(); } catch(e) {}
   // Auto-select today if same month
   if(today.getFullYear()===y && today.getMonth()===m && !DS_VIEW.sel) DS_VIEW.sel = today.getDate();
   try {
@@ -355,6 +356,7 @@ function dsSelectDay(d, keep){
   const cells = document.querySelectorAll('#ds-cal .ds-day:not(.empty)');
   // simpler: re-render? avoid recursion
   if(!keep) dsRender();
+  const _scrollToTable = !keep;
   const isSun = dt.getDay()===0;
   const wd = dsDateToWD(dt);
   const dateStr = dsFmt(dt);
@@ -363,7 +365,7 @@ function dsSelectDay(d, keep){
   // One list: native items keep their own (team,wd) identity; catch-up items keep the ORIGINAL
   // team/wd they belong to, so their status is looked up from where they were actually scheduled.
   const items = baseItems.map(it=>({ n:it.n, u:it.u, a:it.a, f:it.f, l:it.l, _team:team, _wd:wd, _cu:false }))
-    .concat(catchups.map(c=>({ n:c.equipment, u:'', a:'', f:'', l:c.location, _team:c.original_team, _wd:c.original_day, _cu:true, _srcTeam:c.assigned_team, _origDate:c.original_date, _source:c.source, _id:c.id })));
+    .concat(catchups.map(c=>{ const inf = dsScheduleInfo(c.equipment); return ({ n:c.equipment, u:'', a:'', f:inf.f, l:c.location || inf.l, _team:c.original_team, _wd:c.original_day, _cu:true, _srcTeam:c.assigned_team, _origDate:c.original_date, _source:c.source, _id:c.id }); }));
   document.getElementById('ds-sel-title').textContent =
     dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short',year:'numeric'}) +
     (wd?` — Working Day ${wd}`:(catchups.length?' — Reserve day':(isSun?' — Sunday (Off)':'')));
@@ -375,6 +377,7 @@ function dsSelectDay(d, keep){
   }
   document.getElementById('ds-sel-empty').style.display='none';
   document.getElementById('ds-sel-wrap').style.display='';
+  if (_scrollToTable) { try { document.getElementById('ds-sel-title').closest('.card').scrollIntoView({ behavior:'smooth', block:'start' }); } catch(e) {} }
   const today = new Date(); today.setHours(0,0,0,0);
   const tbody = document.getElementById('ds-sel-body');
   const allStatesFull = window.DS_STATE_ALL || dsOccurrenceStates(DS_VIEW.y, DS_VIEW.m, dsFmt(today));
@@ -387,51 +390,119 @@ function dsSelectDay(d, keep){
 
     let readDateStr = '—', completedBy = '—', timing = '';
     if (s) {
-      const dparts = String(s.date).split('-');
-      readDateStr = dparts.length === 3 ? `${dparts[2]}/${dparts[1]}/${dparts[0]}` : s.date;
+      readDateStr = dsShortDate(s.date);
       completedBy = s.by ? (TEAM_NAME[s.by] || s.by) : (s.insp || '—');
-      if (s.delta) timing = ` <span style="font-weight:400;font-size:10px">(${Math.abs(s.delta)} d ${s.delta < 0 ? 'early' : 'late'})</span>`;
+      if (s.delta) timing = `<div class="dsmeta">${Math.abs(s.delta)} d ${s.delta < 0 ? 'early' : 'late'}</div>`;
     }
 
-    let status, rowBg;
-    if (ownDone) {
-      // Own group completed it → green
-      status = '<span style="color:var(--green);font-weight:600">✓ Done</span>' + timing;
-      rowBg = 'background:#D5F5E3';
-    } else if (coveredByOther) {
-      // Another group took the reading → yellow
-      status = `<span style="color:#92400E;font-weight:700">⚠ Covered by ${escHtml(completedBy)}</span>` + timing;
-      rowBg = 'background:#FEF08A';
-    } else if (future) {
-      status = '<span style="color:var(--muted)">Upcoming</span>';
-      rowBg = 'background:#EFF6FF';
-    } else if (dt.getTime()===today.getTime()) {
-      status = '<span style="color:#C2410C;font-weight:600">Pending today</span>';
-      rowBg = 'background:#FFEDD5';
-    } else {
-      // Not taken by its own group and not by anyone else → red
-      status = '<span style="color:var(--red);font-weight:600">Missed</span>';
-      rowBg = 'background:#FEE2E2';
-    }
+    // the row colour says what happened to this visit (the old Status column is gone):
+    // green = read by its own group, yellow = covered by another group, blue = upcoming, orange = due today, red = missed
+    let rowBg, stateTip;
+    if (ownDone) { rowBg = 'background:#D5F5E3'; stateTip = 'Done'; }
+    else if (coveredByOther) { rowBg = 'background:#FEF08A'; stateTip = 'Covered by ' + completedBy; }
+    else if (future) { rowBg = 'background:#EFF6FF'; stateTip = 'Upcoming'; }
+    else if (dt.getTime()===today.getTime()) { rowBg = 'background:#FFEDD5'; stateTip = 'Pending today'; }
+    else { rowBg = 'background:#FEE2E2'; stateTip = 'Missed'; }
+    // last reading of this machine before this visit's reading (or, if not read yet, the latest one so far)
+    const refDate = s ? s.date : (future ? dsFmt(new Date(today.getTime() + 864e5)) : dsFmt(dt));
+    const lastR = dsLastReadingBefore(it.n, refDate);
+    const lastHtml = lastR ? `<span class="dslast">${dsShortDate(lastR.date)}</span><div class="dsmeta">${escHtml(lastR.by)}</div>` : '<span style="color:#6b7280">—</span>';
     const eqObj = MASTER.find(m=>m.name===it.n) || MASTER.find(m=>normalizeEquipName(m.name)===normalizeEquipName(it.n));
     const dispUnit = it.u || (eqObj && eqObj.unit) || '';
     const dispArea = it.a || (eqObj && eqObj.area) || '';
-    const dispLoc  = it.l || '';
+    const dispLoc  = it.l || dsScheduleInfo(it.n).l || '';
     const canClick = !ownDone && eqObj && AUTH.role !== 'viewer';
     // Catch-up rows get a purple left-accent (on top of, not instead of, the normal status colour)
     // plus a badge — so both "what happened" and "is this a re-assigned reading" are visible at once.
     const cuStyle = it._cu ? 'box-shadow:inset 4px 0 0 #7C3AED;' : '';
-    const clickAttr = canClick ? `style="cursor:pointer;${cuStyle}${rowBg}" onclick="openEquipmentForEntry(${jsArg(it.n)},'daily')" title="Click to take reading"` : `style="${cuStyle}${rowBg}"`;
-    const cuBadge = it._cu ? ` <span class="cu-badge" title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">🔁 Catch-up</span>` : '';
+    const clickAttr = canClick ? `style="cursor:pointer;${cuStyle}${rowBg}" onclick="openEquipmentForEntry(${jsArg(it.n)},'daily')" title="${escHtml(stateTip)} — click to take reading"` : `style="${cuStyle}${rowBg}" title="${escHtml(stateTip)}"`;
+    const cuBadge = it._cu ? `<div><span class="cu-badge"title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">🔁 Catch-up</span></div>` : '';
     const cuUndo = (it._cu && typeof AUTH!=='undefined' && AUTH.role==='admin') ? `<button class="btn btn-sm" style="color:#7C3AED;border-color:#7C3AED" onclick="event.stopPropagation();dyUndo(${it._id})" title="Undo this catch-up — equipment goes back to Missed until reassigned">↩ Undo</button>` : '';
-    const actionHtml = `<td style="white-space:nowrap">
+    const actionHtml = `<td class="actcell" data-label="Action"><div class="dsa">
       ${canClick ? `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openEquipmentForEntry(${jsArg(it.n)},'daily')" title="Take Reading">📝 Take Reading</button>` : ''}
       <button class="btn btn-sm" onclick="event.stopPropagation();viewEquipHistory(${jsArg(it.n)})">👁 History</button>
       ${cuUndo}
-    </td>`;
-    return `<tr ${clickAttr} class="${ownDone?'done':''}"><td>${i+1}</td><td><strong>${escHtml(it.n)}</strong>${cuBadge}</td><td>${dispUnit}</td><td>${dispArea}</td><td>${it.f||''}</td><td>${dispLoc}</td><td style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}</td><td style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${completedBy}</td><td>${status}</td>${actionHtml}</tr>`;
+    </div></td>`;
+    return `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsEquipMeta(dispUnit, dispArea, it.f)}${cuBadge}</td><td data-label="Loc">${escHtml(dispLoc)}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
   }).join('');
 }
 function dsPrevMonth(){ DS_VIEW.m--; if(DS_VIEW.m<0){DS_VIEW.m=11;DS_VIEW.y--;} DS_VIEW.sel=null; dsRender(); }
 function dsNextMonth(){ DS_VIEW.m++; if(DS_VIEW.m>11){DS_VIEW.m=0;DS_VIEW.y++;} DS_VIEW.sel=null; dsRender(); }
 function dsToday(){ const t=new Date(); DS_VIEW.y=t.getFullYear(); DS_VIEW.m=t.getMonth(); DS_VIEW.sel=t.getDate(); dsRender(); }
+
+
+// Size the calendar rows so the whole month (and its legend) fits in the window: no page scrolling to see it.
+// Rows shrink to a compact one-line cell when the window is short, and grow (up to 96px) when there is room.
+function dsFitCalendar() {
+  const cal = document.getElementById('ds-cal');
+  if (!cal || !cal.offsetParent) return;
+  const rows = Math.ceil((new Date(DS_VIEW.y, DS_VIEW.m, 1).getDay() + new Date(DS_VIEW.y, DS_VIEW.m + 1, 0).getDate()) / 7);
+  const legend = cal.parentElement && cal.parentElement.querySelector('.ds-legend');
+  const top = cal.getBoundingClientRect().top + (window.scrollY || 0);
+  const reserve = (legend ? legend.offsetHeight + 8 : 0) + 26;               // legend + card padding + breathing room
+  const avail = window.innerHeight - top - reserve;
+  const gap = 3, dowH = 22;
+  let h = Math.floor((avail - dowH - gap * rows - 6) / rows);
+  h = Math.max(34, Math.min(96, h));
+  cal.style.gridTemplateRows = dowH + 'px';
+  cal.style.gridAutoRows = h + 'px';
+  cal.classList.toggle('compact', h < 56);
+}
+window.addEventListener('resize', () => { try { dsFitCalendar(); } catch(e) {} });
+
+
+// "2026-09-14" -> "14/09/2026"
+function dsShortDate(ds) {
+  const p = String(ds || '').slice(0, 10).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(ds || '');
+}
+// Every reading of every machine, oldest -> newest, with the group that took it (rebuilt only when READINGS changes)
+let _dsLastIdx = null;
+function dsLastIndex() {
+  const rd = (typeof dsReadingsArr === 'function' ? dsReadingsArr() : []) || [];
+  const sig = rd.length + '|' + (rd.length ? String(rd[0].date) + String(rd[rd.length - 1].date) : '');
+  if (_dsLastIdx && _dsLastIdx.sig === sig) return _dsLastIdx.map;
+  const map = {};
+  rd.forEach(r => {
+    if (!r.equipment || !r.date) return;
+    const k = normalizeEquipName(r.equipment), ds = String(r.date).slice(0, 10);
+    const t = dsReaderTeam(r);
+    const by = t ? (TEAM_NAME[t] || t) : String(r.inspector || r.username || '').trim();
+    const arr = (map[k] = map[k] || []);
+    const last = arr[arr.length - 1];
+    if (last && last.date === ds && last.by === by) return;   // same group, same day (several points of one session)
+    arr.push({ date: ds, by });
+  });
+  Object.keys(map).forEach(k => map[k].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  _dsLastIdx = { sig, map };
+  return map;
+}
+// The latest reading of a machine taken STRICTLY BEFORE beforeStr (YYYY-MM-DD): {date, by} or null.
+// (A reading taken on that very day is skipped, so for a visit that was just read it shows the reading before it.)
+function dsLastReadingBefore(equip, beforeStr) {
+  const arr = dsLastIndex()[normalizeEquipName(equip)];
+  if (!arr) return null;
+  for (let i = arr.length - 1; i >= 0; i--) if (arr[i].date < beforeStr) {
+    // if several groups read on that same date, list them all
+    const same = arr.filter(x => x.date === arr[i].date).map(x => x.by).filter((v, j, a) => v && a.indexOf(v) === j);
+    return { date: arr[i].date, by: same.join(' + ') };
+  }
+  return null;
+}
+// "Fortnightly" -> "Fortn","EVERY 10 DAYS" -> "10-day": short enough to sit on the small line under the equipment name
+function dsFreqShort(f) {
+  const u = String(f || '').toUpperCase().trim();
+  if (!u) return '';
+  if (/WEEK/.test(u)) return 'Wkly';
+  if (/10/.test(u)) return '10-day';
+  if (/FORT/.test(u)) return 'Fortn';
+  if (/MONTH/.test(u)) return 'Mthly';
+  return u.slice(0, 6);
+}
+// the small grey line under an equipment name: unit · area · frequency
+function dsEquipMeta(unit, area, freq) {
+  const parts = [unit, area].map(x => String(x || '').trim()).filter(Boolean).map(escHtml);
+  const fs = dsFreqShort(freq);
+  if (fs) parts.push('<span title="' + escHtml(String(freq)) + '">' + fs + '</span>');
+  return parts.length ? '<div class="dsmeta">' + parts.join(' · ') + '</div>' : '';
+}

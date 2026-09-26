@@ -9,6 +9,7 @@ function apSelect(key) {
   panes.forEach(p => p.classList.toggle('on', p.getAttribute('data-ap') === key));
   document.querySelectorAll('#admin-panel-modal .ap-nav-btn').forEach(b => b.classList.toggle('on', b.getAttribute('data-ap') === key));
   try { localStorage.setItem(AP_TAB_KEY, key); } catch(e) {}
+  if (key === 'recs' && typeof rmOpen === 'function') rmOpen();
   const c = document.querySelector('#admin-panel-modal .ap-content'); if (c) c.scrollTop = 0;
 }
 
