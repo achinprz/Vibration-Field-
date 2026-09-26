@@ -38,8 +38,8 @@ function selectEquip(e) {
       limEl.innerHTML = `<div class="alert-box alert-info" style="margin-bottom:8px;font-size:11px">
         📐 <strong>Vibration Limits (${unit}):</strong>&nbsp;
         <span style="color:var(--green)">✅ Normal: ≤${el.a}</span> &nbsp;|&nbsp;
-        <span style="color:#D97706">⚠️ Alarm: ${el.a}–${el.at}</span> &nbsp;|&nbsp;
-        <span style="color:var(--orange)">🔶 Alert: ${el.at}–${el.c}</span> &nbsp;|&nbsp;
+        <span style="color:#D97706">⚠️ Alarm: ${el.a}–${el.at < el.c ? el.at : el.c}</span> &nbsp;|&nbsp;
+        ${el.at < el.c ? `<span style="color:var(--orange)">🔶 Alert: ${el.at}–${el.c}</span> &nbsp;|&nbsp;` : ''}
         <span style="color:#DC2626">🔴 Critical: >${el.c}</span>
       </div>`;
     } else {
@@ -235,13 +235,14 @@ function buildRecsStep() {
     entryEquip.params.forEach(p=>{
       const key=p.replace(/\s/g,'_');
       const type=p.toLowerCase().includes('acc')?'acc':p.toLowerCase().includes('dis')?'dis':'vel';
-      const s=getSev(r[key],type); if(s) allSevs.push(s);
+      const s=getSev(r[key],type,entryEquip.name,isDecoupledMode()); if(s) allSevs.push(s);
     });
   });
   const os=worstSev(allSevs);
   document.getElementById('s3-sev-preview').innerHTML=`Overall vibration status: ${badgeHtml(os)}`;
   const aiBox = document.getElementById('wizard-ai-box');
   if (aiBox) { aiBox.style.display='none'; aiBox.innerHTML=''; }
+  if (typeof refreshAIVisibility === 'function') refreshAIVisibility();   // hide/show now, then re-confirm with Supabase
   renderRecItems();
 }
 
@@ -289,9 +290,9 @@ function removeRec(i) { entryRecs.splice(i,1); renderRecItems(); }
 function buildReview() {
   const e=entryEquip;
   document.getElementById('s4-eq-name').textContent=e.name+' — '+e.unit+'/'+e.area;
-  // Reset severity override dropdown
+  // Reset severity override dropdown — unless the engineer accepted an AI suggestion, whose severity must survive
   const ovEl=document.getElementById('s4-sev-override');
-  if(ovEl) ovEl.value='';
+  if(ovEl) ovEl.value=(window._aiAcceptedForSession && window._lastAISeverity) ? window._lastAISeverity : '';
   const tbody=document.getElementById('s4-review-body'); tbody.innerHTML='';
   const allSevs=[];
   e.points.forEach(pt=>{
@@ -299,14 +300,14 @@ function buildReview() {
     const paramCols=['H_Vel','V_Vel','A_Vel','Acc','H_Dis','V_Dis','A_Dis'].map(k=>{
       const val=r[k];
       const type=k.toLowerCase().includes('acc')?'acc':k.toLowerCase().includes('dis')?'dis':'vel';
-      const sev=getSev(val,type,entryEquip?entryEquip.name:null); if(sev) allSevs.push(sev);
+      const sev=getSev(val,type,entryEquip?entryEquip.name:null,isDecoupledMode()); if(sev) allSevs.push(sev);
       const style=sev==='CRITICAL'?'color:#DC2626;font-weight:700':sev==='ALERT'?'color:#EA580C;font-weight:700':sev==='ALARM'?'color:#D97706;font-weight:600':'';
       return `<td style="${style}">${val!==undefined&&val!==''?parseFloat(val).toFixed(2):'—'}</td>`;
     }).join('');
     const ptSevs=e.params.map(p=>{
       const key=p.replace(/\s/g,'_');
       const type=p.toLowerCase().includes('acc')?'acc':p.toLowerCase().includes('dis')?'dis':'vel';
-      return getSev(r[key],type,entryEquip?entryEquip.name:null);
+      return getSev(r[key],type,entryEquip?entryEquip.name:null,isDecoupledMode());
     });
     const os=worstSev(ptSevs.filter(Boolean));
     const tr=document.createElement('tr');
@@ -335,6 +336,7 @@ function buildReview() {
   } else {
     recDiv.innerHTML='<div style="font-size:12px;color:var(--muted)">No recommendations added.</div>';
   }
+  if(ovEl && ovEl.value) applyOverrideSeverity(ovEl.value);
 }
 
 // ---- SEVERITY OVERRIDE ----

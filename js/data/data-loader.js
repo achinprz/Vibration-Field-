@@ -33,6 +33,7 @@ async function fetchEquipmentMaster() {
       MASTER = data.map(eq => ({
         name: eq.name, unit: eq.unit, area: eq.area, dept: eq.dept,
         category: eq.category || 'OTHER',   // fed to the AI prediction API — see supabase/equipment_category.sql
+        family: eq.family || '',            // optional manual family override — see supabase/equipment_manager.sql
         rpm: eq.rpm, frequency: eq.frequency,
         points: eq.points ? (Array.isArray(eq.points) ? eq.points : JSON.parse(eq.points)) : [],
         params: eq.params ? (Array.isArray(eq.params) ? eq.params : JSON.parse(eq.params)) : [],
@@ -80,7 +81,8 @@ function loadData() {
     fetchEquipmentMaster(),
     fetchRecommendations(),
     fetchVibeSchedule(),
-    _fetchAllFromGS()
+    _fetchAllFromGS(),
+    (typeof fetchAppSettings === 'function') ? fetchAppSettings() : null
   ])
   .then(async ([masterOk, recsOk, fetchResult]) => {
     populateFilters();

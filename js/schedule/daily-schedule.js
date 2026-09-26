@@ -258,6 +258,8 @@ function dsSyncTeamSelect(value){
 }
 
 function dsRender(){
+  try { if (typeof dsqRefresh === 'function') dsqRefresh(); } catch(e) {}   // keep the equipment search in step with month / data changes
+  try { if (typeof dsvGuard === 'function') dsvGuard(); } catch(e) {}
   const team = dsCurrentTeam();
   const userPill = document.getElementById('ds-user-pill');
   const adminSel = document.getElementById('ds-team-admin');

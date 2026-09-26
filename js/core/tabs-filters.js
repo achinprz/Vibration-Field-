@@ -32,9 +32,12 @@ function showTab(t) {
     showToast('📵 Offline — only Data Entry is available. History & schedules will appear when internet is restored.', 'blue');
     t = 'entry';
   }
+  const dailyWasOpen = document.getElementById('tab-daily').classList.contains('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
+  // Coming into Daily Schedule from another tab always starts on the calendar (a refresh inside the tab keeps its section)
+  if (t==='daily' && !dailyWasOpen && typeof dsvSelect === 'function') dsvSelect('cal');
   // Find the matching nav-tab by its onclick attribute
   document.querySelectorAll('.nav-tab').forEach(b=>{
     if(b.getAttribute('onclick') && b.getAttribute('onclick').includes("'"+t+"'")) b.classList.add('active');

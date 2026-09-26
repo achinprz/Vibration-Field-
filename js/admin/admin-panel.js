@@ -1,13 +1,27 @@
 /* VibeMon — admin panel (users, custom schedule) */
 
 // ======= ADMIN PANEL =======
+// Left-menu navigation: only the chosen setting is shown; the last choice is remembered on this device.
+const AP_TAB_KEY = 'vibemon_admin_tab';
+function apSelect(key) {
+  const panes = document.querySelectorAll('#admin-panel-modal .ap-pane');
+  if (!Array.prototype.some.call(panes, p => p.getAttribute('data-ap') === key)) key = 'users';
+  panes.forEach(p => p.classList.toggle('on', p.getAttribute('data-ap') === key));
+  document.querySelectorAll('#admin-panel-modal .ap-nav-btn').forEach(b => b.classList.toggle('on', b.getAttribute('data-ap') === key));
+  try { localStorage.setItem(AP_TAB_KEY, key); } catch(e) {}
+  const c = document.querySelector('#admin-panel-modal .ap-content'); if (c) c.scrollTop = 0;
+}
+
 function openAdminPanel() {
   if (AUTH.role !== 'admin') return;
   renderUserTable();
+  let tab = 'users'; try { tab = localStorage.getItem(AP_TAB_KEY) || 'users'; } catch(e) {}
+  apSelect(tab);
   try {
     const u = document.getElementById('ai-service-url'); if (u) u.value = localStorage.getItem(AI_URL_KEY) || '';
     const k = document.getElementById('ai-service-key'); if (k) k.value = localStorage.getItem(AI_KEY_KEY) || '';
   } catch(e) {}
+  if (typeof syncAIOperatorToggle === 'function') syncAIOperatorToggle();
   document.getElementById('admin-panel-modal').classList.add('open');
 }
 function closeAdminPanel() {

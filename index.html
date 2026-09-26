@@ -18,13 +18,14 @@
 <link rel="stylesheet" href="css/base.css?v=20260922">
 <link rel="stylesheet" href="css/layout.css?v=20260922">
 <link rel="stylesheet" href="css/components.css?v=20260922">
-<link rel="stylesheet" href="css/auth-admin.css?v=20260922">
+<link rel="stylesheet" href="css/auth-admin.css?v=20260925b">
 <link rel="stylesheet" href="css/responsive.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-offline.css?v=20260922">
 <link rel="stylesheet" href="css/theme.css?v=20260922">
-<link rel="stylesheet" href="css/daily-schedule.css?v=20260924">
+<link rel="stylesheet" href="css/daily-schedule.css?v=20260926b">
 <link rel="stylesheet" href="css/autocomplete.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-manager.css?v=20260922">
+<link rel="stylesheet" href="css/equipment-manager.css?v=20260925b">
 <script type="module" src="js/boot/webview-bridge.js?v=20260922"></script>
 </head>
 <body>
@@ -211,10 +212,13 @@
       <div class="card-body">
         <div style="font-size:15px;font-weight:700" id="s3-eq-name"></div>
         <div id="s3-sev-preview" style="margin-top:6px"></div>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px">
-          <button class="btn btn-sm" id="wizard-ai-btn" onclick="queryAIForWizard()" style="background:#059669;color:#fff;border:none">🤖 Get AI Suggestion</button>
+        <div id="wizard-ai-card" style="display:none">
+          <div id="wizard-ai-note" style="font-size:11px;color:var(--text-muted,var(--muted));margin-top:6px"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <button class="btn btn-sm" id="wizard-ai-btn" onclick="queryAIForWizard()" style="background:#059669;color:#fff;border:none">🤖 Get AI Suggestion</button>
+          </div>
+          <div id="wizard-ai-box" style="display:none;margin-top:8px"></div>
         </div>
-        <div id="wizard-ai-box" style="display:none;margin-top:8px"></div>
       </div>
     </div>
     <div class="rec-section">
@@ -347,7 +351,16 @@
     <button class="btn btn-sm" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text)" onclick="tabRefresh('daily')" title="Fetch latest readings from Supabase">🔄 Refresh Data</button>
   </div>
   <div id="vs-diag" style="display:none;margin-bottom:8px;padding:8px 10px;border-radius:6px;font-size:12px;font-weight:600;word-break:break-word"></div>
-  <div class="card">
+    <div class="dsv-layout">
+    <nav class="dsv-nav" id="dsv-nav">
+      <button class="dsv-nav-btn on" data-dsv="cal"  onclick="dsvSelect('cal')"><span class="dsv-ic">📅</span><span>Calendar &amp; day schedule</span></button>
+      <button class="dsv-nav-btn"    data-dsv="find" onclick="dsvSelect('find')"><span class="dsv-ic">🔎</span><span>Find equipment</span></button>
+      <button class="dsv-nav-btn"    data-dsv="perf" onclick="dsvSelect('perf')"><span class="dsv-ic">📊</span><span>Performance</span></button>
+      <button class="dsv-nav-btn"    data-dsv="cmp"  id="dsv-nav-cmp" onclick="dsvSelect('cmp')"><span class="dsv-ic">📈</span><span>Team comparison</span></button>
+    </nav>
+    <div class="dsv-content">
+      <div class="dsv-pane on" data-dsv="cal">
+<div class="card">
     <div class="card-body" style="padding:12px">
       <div class="ds-cal" id="ds-cal"></div>
       <div class="ds-legend">
@@ -361,7 +374,7 @@
       </div>
     </div>
   </div>
-  <div class="card" style="margin-top:12px">
+<div class="card" style="margin-top:12px">
     <div class="card-head" style="background:#EFF6FF">
       <span class="card-title" id="ds-sel-title" style="color:var(--blue-text)">Select a day</span>
       <span id="ds-sel-meta" style="font-size:11px;color:var(--muted)"></span>
@@ -373,14 +386,36 @@
       </div>
     </div>
   </div>
-  <div class="card" style="margin-top:12px">
+      </div>
+      <div class="dsv-pane" data-dsv="find">
+<div class="card" style="margin-bottom:12px">
+    <div class="card-body" style="padding:10px 12px">
+      <div class="dsq-bar"><span style="font-size:16px">🔎</span><input type="search" id="ds-eq-search" placeholder="Find equipment in this month — e.g. ESP VACUUM, MDBFP-1A, PA FAN" autocomplete="off"><button class="btn btn-sm" onclick="dsqClear()">✕ Clear</button></div>
+      <div class="dsq-sub" style="margin-top:4px">Shows every scheduled visit of the matching equipment this month — done, covered by another group or missed — with the date read and who read it.</div>
+      <div id="ds-eq-result"></div>
+    </div>
+  </div>
+      </div>
+      <div class="dsv-pane" data-dsv="perf">
+<div class="card" style="margin-top:12px">
     <div class="card-head" style="background:#EFF6FF">
       <span class="card-title" style="color:var(--blue-text)">📊 Total (All Groups)</span>
       <span style="font-size:11px;color:var(--muted)">Completed this month</span>
     </div>
     <div class="card-body" style="padding:8px 12px">
       <div id="ds-perf-total"></div>
-      <div id="ds-compare" class="requires-admin" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+      
+    </div>
+  </div>
+      </div>
+      <div class="dsv-pane" data-dsv="cmp">
+  <div class="card">
+    <div class="card-head" style="background:#EFF6FF">
+      <span class="card-title" style="color:var(--blue-text)">📈 Team comparison</span>
+      <span style="font-size:11px;color:var(--muted)">Admin view · viewed month and history</span>
+    </div>
+    <div class="card-body" style="padding:8px 12px">
+<div id="ds-compare" class="requires-admin" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
         <div style="font-weight:700;font-size:13px;color:var(--blue-text);margin-bottom:2px">📊 Team Comparison <span style="font-weight:400;color:var(--muted);font-size:11px">(admin view)</span></div>
         <div id="ds-compare-sub" style="font-size:11px;color:var(--muted);margin-bottom:10px"></div>
         <div id="ds-compare-bars" style="margin-bottom:16px"></div>
@@ -395,6 +430,9 @@
           <span>🟢 Chaitanya Bharthi-A</span>
         </div>
         <div id="ds-compare-monthwise"></div>
+      </div>
+    </div>
+  </div>
       </div>
     </div>
   </div>
@@ -456,6 +494,17 @@
   </div>
 </div>
 
+
+<!-- EQUIPMENT MANAGER MODAL (admin only): edit / rename / add equipment, families, office SQL -->
+<div class="admin-panel-modal" id="equipment-manager-modal">
+  <div class="admin-panel-box em-box">
+    <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;background:inherit">
+      <span style="font-weight:700;font-size:14px">🛠 Equipment Manager — edit, rename, add equipment &amp; families</span>
+      <button class="modal-close" onclick="closeEquipmentManager()">&#215;</button>
+    </div>
+    <div id="em-body" style="padding:14px 16px"></div>
+  </div>
+</div>
 
 <!-- SCHEDULE MANAGER MODAL (admin only): frequency rules -> schedule for a future month -->
 <div class="admin-panel-modal" id="schedule-manager-modal">
@@ -532,16 +581,33 @@
 
 <!-- ADMIN PANEL MODAL -->
 <div class="admin-panel-modal" id="admin-panel-modal">
-  <div class="admin-panel-box">
+  <div class="admin-panel-box ap-box">
     <div class="modal-head" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
-      <span style="font-weight:700;font-size:14px">🛡️ Admin Panel — User Management</span>
+      <span style="font-weight:700;font-size:14px">🛡️ Admin Panel</span>
       <button class="modal-close" onclick="closeAdminPanel()">&#215;</button>
     </div>
-    <div style="padding:16px">
+    <div class="ap-layout">
+    <nav class="ap-nav" id="ap-nav">
+      <button class="ap-nav-btn" data-ap="tools"     onclick="apSelect('tools')"><span class="ap-ic">🧰</span><span>Managers</span></button>
+      <button class="ap-nav-btn" data-ap="users"     onclick="apSelect('users')"><span class="ap-ic">👥</span><span>Users</span></button>
+      <button class="ap-nav-btn" data-ap="ai"        onclick="apSelect('ai')"><span class="ap-ic">🤖</span><span>AI service</span></button>
+      <button class="ap-nav-btn" data-ap="supabase"  onclick="apSelect('supabase')"><span class="ap-ic">⚡</span><span>Supabase</span></button>
+      <button class="ap-nav-btn" data-ap="schedule"  onclick="apSelect('schedule')"><span class="ap-ic">📅</span><span>Schedule upload</span></button>
+      <button class="ap-nav-btn" data-ap="retention" onclick="apSelect('retention')"><span class="ap-ic">🗑️</span><span>Data retention</span></button>
+    </nav>
+    <div class="ap-content">
 
-      <div style="margin-bottom:14px"><button class="btn btn-primary" onclick="closeAdminPanel();openScheduleManager()">🗓 Open Schedule Manager (equipment frequencies &amp; next month's schedule)</button></div>
+      <div class="ap-pane" data-ap="tools">
+        <div class="ap-title">Managers</div>
+        <div class="ap-desc">Bigger tools that open in their own window.</div>
+        <div class="ap-cards">
+          <button class="ap-card" onclick="closeAdminPanel();openEquipmentManager()"><b>🛠 Equipment Manager</b><span>Edit, rename and add equipment, vibration limits, families, and the SQL script for your office database.</span></button>
+          <button class="ap-card" onclick="closeAdminPanel();openScheduleManager()"><b>🗓 Schedule Manager</b><span>Change how often equipment or a whole family is read and generate next month's schedule.</span></button>
+        </div>
+      </div>
 
       <!-- SUPABASE SETTINGS -->
+      <div class="ap-pane" data-ap="supabase">
       <div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:8px;padding:12px 14px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:#3730A3;margin-bottom:8px">⚡ Supabase Connection Settings</div>
         <div style="font-size:11px;color:#4338CA;margin-bottom:10px">These are stored in this browser only. To make them permanent, edit <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of the HTML file.</div>
@@ -565,11 +631,21 @@
           <code style="display:block;margin-top:6px;padding:8px;background:#FFF3CD;border-radius:4px;font-size:10px;white-space:pre-wrap;user-select:all">ALTER TABLE readings ADD COLUMN IF NOT EXISTS is_decoupled BOOLEAN DEFAULT false;</code>
         </div>
       </div>
+      </div><!-- /pane supabase -->
 
       <!-- AI PREDICTION SERVICE SETTINGS -->
+      <div class="ap-pane" data-ap="ai">
       <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:12px 14px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:8px">🤖 AI Prediction Service</div>
-        <div style="font-size:11px;color:#047857;margin-bottom:10px">URL + key for the cloud severity/recommendation model (see <code>cloud/DEPLOY_GUIDE.md</code> in the migration package). Stored in this browser only — saved here, every field engineer's device needs it set once too, or you can hardcode <code>AI_DEFAULT_URL</code>/<code>AI_DEFAULT_KEY</code> in <code>js/ai/ai-predict.js</code> for all devices at once.</div>
+        <div style="background:#fff;border:1px solid #A7F3D0;border-radius:6px;padding:10px 12px;margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#065F46;cursor:pointer;margin:0">
+            <input type="checkbox" id="ai-operator-toggle" onchange="setAIOperatorAccess(this.checked)" style="width:16px;height:16px">
+            Show AI suggestions to operators (engineers)
+          </label>
+          <div style="font-size:11px;color:#047857;margin-top:4px">OFF by default. Admins always see the AI button. Applies to every device (saved in Supabase).</div>
+          <div id="ai-operator-status" style="margin-top:6px"></div>
+        </div>
+        <div style="font-size:11px;color:#047857;margin-bottom:10px">The service address and key are built into the app, so no device needs setting up. The fields below are an <b>optional override for this browser only</b> — leave them empty normally.</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
           <label style="font-size:11px;font-weight:600;color:#374151">AI SERVICE URL</label>
           <input type="text" id="ai-service-url" placeholder="https://vibemon-predict.onrender.com" style="padding:7px 10px;border:1px solid #A7F3D0;border-radius:6px;font-size:12px;background:#fff;color:var(--text)">
@@ -583,7 +659,10 @@
         </div>
         <div id="ai-service-result"></div>
       </div>
+      </div><!-- /pane ai -->
 
+      <div class="ap-pane" data-ap="users">
+      <div class="ap-title">Users</div>
       <div style="font-size:13px;font-weight:700;margin-bottom:10px">Create New Engineer Account</div>
       <div class="form-grid" style="margin-bottom:10px">
         <div class="fg">
@@ -612,8 +691,10 @@
           <tbody id="user-table-body"></tbody>
         </table>
       </div>
+      </div><!-- /pane users -->
       <!-- Schedule Excel Upload Section -->
-      <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px">
+      <div class="ap-pane" data-ap="schedule">
+      <div>
         <div style="font-size:13px;font-weight:700;margin-bottom:6px">📅 Upload Custom Schedule Excel</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
           Upload an Excel file (e.g. <code>NTPC_Dadri_Vibration_Schedule_Universal.xlsx</code>) containing sheets named: <strong>Precise</strong>, <strong>Chaitanya Bharthi</strong>, and <strong>Chaitanya Bharthi-A</strong> to update the daily schedule day-wise and team-wise.
@@ -625,8 +706,10 @@
         <div id="admin-schedule-msg" style="margin-top:6px;font-size:11px;font-weight:600"></div>
         <button class="btn btn-sm" onclick="resetCustomSchedule()" style="margin-top:10px;font-size:11px;color:var(--red);border-color:var(--red);background:transparent">Revert to Default Schedule</button>
       </div>
+      </div><!-- /pane schedule -->
       <!-- Data Retention Section -->
-      <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px">
+      <div class="ap-pane" data-ap="retention">
+      <div>
         <div style="font-size:13px;font-weight:700;margin-bottom:6px">🗑️ Data Retention Cleanup</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
           Removes readings older than <strong>6 months</strong> from Supabase to keep the database fast.
@@ -637,7 +720,9 @@
           💡 <strong>Tip:</strong> For mobile HTML on Supabase, ~3,000–5,000 rows can be processed smoothly. Beyond 8,000 rows, filtering and rendering may slow down. Keep 3–4 months for best mobile performance.
         </div>
       </div>
-    </div>
+      </div><!-- /pane retention -->
+    </div><!-- /ap-content -->
+    </div><!-- /ap-layout -->
   </div>
 </div>
 
@@ -664,14 +749,14 @@
 <script src="js/core/config.js?v=20260922"></script>
 <script src="js/core/ui-helpers.js?v=20260922"></script>
 <script src="js/data/equipment-master.js?v=20260922"></script>
-<script src="js/data/severity.js?v=20260922"></script>
+<script src="js/data/severity.js?v=20260925"></script>
 <script src="js/data/html-utils.js?v=20260922"></script>
 <script src="js/data/recommendations.js?v=20260922"></script>
-<script src="js/data/data-loader.js?v=20260922"></script>
-<script src="js/core/tabs-filters.js?v=20260922"></script>
+<script src="js/data/data-loader.js?v=20260925"></script>
+<script src="js/core/tabs-filters.js?v=20260926"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
-<script src="js/entry/entry-wizard.js?v=20260924"></script>
-<script src="js/ai/ai-predict.js?v=20260924"></script>
+<script src="js/entry/entry-wizard.js?v=20260926"></script>
+<script src="js/ai/ai-predict.js?v=20260926"></script>
 <script src="js/offline/offline-queue.js?v=20260924"></script>
 <script src="js/entry/save-session.js?v=20260924"></script>
 <script src="js/history/history.js?v=20260922"></script>
@@ -680,7 +765,7 @@
 <script src="js/reports/dashboard-pdf.js?v=20260922"></script>
 <script src="js/auth/auth.js?v=20260922"></script>
 <script src="js/admin/data-retention.js?v=20260922"></script>
-<script src="js/admin/admin-panel.js?v=20260924"></script>
+<script src="js/admin/admin-panel.js?v=20260925b"></script>
 <script src="js/history/edit-report.js?v=20260922"></script>
 <script src="js/history/session-actions.js?v=20260922"></script>
 <script src="js/bulk/template-builder.js?v=20260922"></script>
@@ -690,7 +775,7 @@
 <script src="js/exceptions/exceptions.js?v=20260922"></script>
 <script src="js/exceptions/pending-equipment.js?v=20260922"></script>
 <script src="js/schedule/schedule-data.js?v=20260924"></script>
-<script src="js/schedule/daily-schedule.js?v=20260924"></script>
+<script src="js/schedule/daily-schedule.js?v=20260926b"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
 <script src="js/schedule/monthly-performance.js?v=20260922"></script>
 <script src="js/core/tab-refresh.js?v=20260922"></script>
@@ -702,8 +787,11 @@
 <script src="js/schedule/schedule-engine.js?v=20260922"></script>
 <script src="js/schedule/dynamic-recovery.js?v=20260924"></script>
 <script src="js/admin/schedule-manager.js?v=20260922"></script>
+<script src="js/admin/equipment-manager.js?v=20260925"></script>
 <script src="js/core/equip-autocomplete.js?v=20260922"></script>
 <script src="js/core/equip-search-setup.js?v=20260922"></script>
+<script src="js/schedule/schedule-search.js?v=20260926"></script>
+<script src="js/schedule/daily-panes.js?v=20260926"></script>
 <script src="js/app-init.js?v=20260922"></script>
 
 

@@ -17,15 +17,46 @@ const SEV_DIS = {alarm:50,  alert:75, critical:100};
 // Decoupled Trial severity limits — velocity only (mm/s): <2.0 Normal, 2.0-2.5 Alarm, 2.5-3.0 Alert, >3.0 Critical
 const SEV_DECOUPLED_VEL = {alarm:2.0, alert:2.5, critical:3.0};
 
-// Get per-equipment limits — reads from DYNAMIC_EQUIP_LIMITS (loaded from Google Sheet)
-// Falls back to SEV_VEL defaults if not found
+// equipment_master.limits in Supabase stores each zone's UPPER bound:
+//   {"unit":"mm/s"|"micron", "normal":4.5, "alarm":7.1, "alert":11.2, "critical":11.2}
+//   i.e. NORMAL up to 4.5 · ALARM up to 7.1 · ALERT up to 11.2 · CRITICAL from 11.2.
+// The severity engine below works with zone START points instead:
+//   a = ALARM starts, at = ALERT starts, c = CRITICAL starts, u = 'mic' | 'mm'.
+// Reading el.a/el.at/el.c straight off the database object gave undefined, so every
+// velocity check silently fell through to NORMAL and the limits banner showed "undefined".
+// A missing "alarm" key means the machine has no separate alert tier: ALARM runs to critical.
+const _limitsNormCache = new WeakMap();
+function normalizeLimits(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (_limitsNormCache.has(raw)) return _limitsNormCache.get(raw);
+  const num = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+  let out = null;
+  if (raw.a != null && raw.c != null) {
+    out = { a: num(raw.a), at: num(raw.at) ?? num(raw.c), c: num(raw.c), u: raw.u === 'mic' ? 'mic' : 'mm' };
+  } else {
+    const isMic = /mic/i.test(String(raw.unit || raw.u || ''));
+    const def = isMic ? SEV_DIS : SEV_VEL;
+    const tops = [num(raw.alert), num(raw.critical)].filter(x => x !== null);
+    const c = tops.length ? Math.min(...tops) : null;
+    const a = num(raw.normal);
+    if (a !== null || c !== null || num(raw.alarm) !== null) {
+      const cVal = c ?? def.critical;
+      out = { a: a ?? def.alarm, at: num(raw.alarm) ?? cVal, c: cVal, u: isMic ? 'mic' : 'mm' };
+    }
+  }
+  _limitsNormCache.set(raw, out);
+  return out;
+}
+
+// Get per-equipment limits in engine form ({a, at, c, u}) — null when the machine has none.
 function getEquipLimits(equipName, type) {
   if (!equipName) return null;
   const el = DYNAMIC_EQUIP_LIMITS[equipName] || DYNAMIC_EQUIP_LIMITS[equipName.trim()];
-  if (el) return el;
-  // Try matching by MASTER data
+  if (el) return normalizeLimits(el);
   const me = MASTER.find(m => m.name === equipName);
-  if (me && me.limits) return me.limits;
+  if (me && me.limits) return normalizeLimits(me.limits);
+  const info = (typeof equipInfo === 'function') ? equipInfo(equipName) : null;
+  if (info && info.master && info.master.limits) return normalizeLimits(info.master.limits);
   return null;
 }
 
