@@ -883,12 +883,21 @@ function emOfficeSql(list) {
   L.push('-- Run once in SSMS against the office SQL Server. Everything is inside one transaction: if any line fails, nothing is applied.');
   L.push('USE VibeMonDB;', 'GO', 'SET XACT_ABORT ON;', 'SET NOCOUNT ON;', 'BEGIN TRAN;', '');
   const master = 'dbo.VibeMon_EquipmentMaster';
+  // dbo.VibeMon_Schedule.Frequency is an INT (days between readings — VibeMon.ashx reads it with Convert.ToInt32),
+  // not a word, unlike the app's own schedule which stores a word like "MONTHLY". d.schedule entries carry the
+  // word (freq: f.label, e.g. "MONTHLY"), so it must be converted to days here before it goes in a Schedule INSERT.
+  const FREQ_DAYS = {}; EM_FREQ.forEach(f => { FREQ_DAYS[f.label] = f.days; FREQ_DAYS[f.word.toUpperCase()] = f.days; });
+  const freqDaysOf = w => { const d = FREQ_DAYS[String(w || '').toUpperCase()]; return d == null ? 'NULL' : d; };
   // Dept / Category column names vary between installs, so look the real column up before updating it.
+  // EXEC('...' + x + '...') only accepts string literals and local variables in the concatenation — SQL Server
+  // rejects a function call there (e.g. QUOTENAME(...) directly inline: "Incorrect syntax near 'QUOTENAME'").
+  // So QUOTENAME's result is put into its own variable first, and only that variable is concatenated.
   const guarded = (col, val, whereSql, ix) => {
     const cands = col === 'dept' ? "'Dept','Department','Det'" : "'Category','EquipmentCategory'";
     const inner = ' = ' + emSqlStr(val) + ' WHERE ' + whereSql;
     return [`DECLARE @k${ix}${col} sysname = (SELECT TOP 1 name FROM sys.columns WHERE object_id = OBJECT_ID('${master}') AND name IN (${cands}));`,
-      `IF @k${ix}${col} IS NOT NULL EXEC (N'UPDATE ${master} SET ' + QUOTENAME(@k${ix}${col}) + N'${inner.replace(/'/g, "''")}');`];
+      `DECLARE @k${ix}${col}q nvarchar(258) = QUOTENAME(@k${ix}${col});`,
+      `IF @k${ix}${col} IS NOT NULL EXEC (N'UPDATE ${master} SET ' + @k${ix}${col}q + N'${inner.replace(/'/g, "''")}');`];
   };
   list.forEach((c, idx) => {
     const d = c.details || {}, ix = c.id || idx;
@@ -917,7 +926,7 @@ function emOfficeSql(list) {
       if ((d.schedule || []).length) {
         const mm = emMaster(c.equipment) || {};
         L.push('-- Optional: only if the plant dashboard also uses dbo.VibeMon_Schedule (the app keeps monthly versions of its own).');
-        d.schedule.forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${emSqlStr(c.equipment)}, ${emSqlStr(mm.unit)}, ${emSqlStr(mm.area)}, ${emSqlStr(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
+        d.schedule.forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${emSqlStr(c.equipment)}, ${emSqlStr(mm.unit)}, ${emSqlStr(mm.area)}, ${freqDaysOf(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
       }
     } else if (c.action === 'add') {
       const r = d.row || {}, nm = emSqlStr(c.equipment);
@@ -931,7 +940,7 @@ function emOfficeSql(list) {
         `    INSERT INTO ${master} (SNo, ${cols}) VALUES (@sno${ix}, ${vals});`, 'END;');
       ['dept', 'category'].forEach(col => { if (r[col]) guarded(col, r[col], `Name = ${nm}`, ix).forEach(x => L.push(x)); });
       L.push('-- Optional: only if the plant dashboard also uses dbo.VibeMon_Schedule (this is the regular-month pattern; the app keeps monthly versions of its own).');
-      (d.schedule || []).forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${nm}, ${emSqlStr(r.unit)}, ${emSqlStr(r.area)}, ${emSqlStr(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
+      (d.schedule || []).forEach(s => L.push(`INSERT INTO dbo.VibeMon_Schedule (Team, WorkingDay, Equipment, Unit, Area, Frequency, Location, Rotation) VALUES (${emSqlStr(s.team)}, ${s.day}, ${nm}, ${emSqlStr(r.unit)}, ${emSqlStr(r.area)}, ${freqDaysOf(s.freq)}, ${emSqlStr(s.loc)}, ${emSqlStr(s.rotation)});`));
     }
     if (c.action === 'rec_add') {
       const tx = emSqlStr(c.equipment);
