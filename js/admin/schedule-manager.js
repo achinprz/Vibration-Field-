@@ -10,8 +10,10 @@ const SM_FREQ = [
   { code: 'F', label: 'FORTNIGHTLY',   text: 'Fortnightly (2 / month)' },
   { code: 'M', label: 'MONTHLY',       text: 'Monthly (1 / month)' }
 ];
-const SM_CODE = {}, SM_LABEL = {}, SM_NAME = { W: 'Weekly', T: 'Every 10 days', F: 'Fortnightly', M: 'Monthly' };
+const SM_CODE = {}, SM_LABEL = {}, SM_NAME = { W: 'Weekly', T: 'Every 10 days', F: 'Fortnightly', M: 'Monthly', N: 'Not scheduled' };
 SM_FREQ.forEach(f => { SM_CODE[f.label] = f.code; SM_LABEL[f.code] = f.label; });
+SM_LABEL.N = 'NOT SCHEDULED'; SM_CODE['NOT SCHEDULED'] = 'N';   // mirrors Equipment Manager's "Not scheduled" (freqCode
+  // 'N') — never in ROUNDS_OF on purpose, so it can't be mistaken for a real frequency; schedule-engine.js treats it as "remove".
 
 const SM = {
   rules: { fam: {}, eq: {} }, draft: { fam: {}, eq: {} }, ruleRows: [],
@@ -67,7 +69,7 @@ function smBuildSource() {
   SM.mode = SM.srcFrom ? 'adjust' : 'rebuild';   // first time: rebuild (groups by location); afterwards: change only what changed
 }
 const smEff = (rules, e) => rules.eq[e.name] || rules.fam[e.fam] || e.freq;
-const smRequired = rules => SM.eqs.reduce((s, e) => s + window.VibeEngine.ROUNDS_OF[smEff(rules, e)], 0);
+const smRequired = rules => SM.eqs.reduce((s, e) => s + (window.VibeEngine.ROUNDS_OF[smEff(rules, e)] || 0), 0);   // ROUNDS_OF['N'] is undefined on purpose ("Not scheduled" = 0 readings)
 const smRequiredToday = () => SM.eqs.reduce((s, e) => s + window.VibeEngine.ROUNDS_OF[e.freq], 0);
 
 /* ───────── database ───────── */
@@ -203,8 +205,9 @@ async function smRemoveVersion(from) {
 }
 
 /* ───────── screen ───────── */
-function smSelect(cur, blank, attr) {
-  return `<select ${attr}><option value="">${blank}</option>${SM_FREQ.map(f => `<option value="${f.code}"${cur === f.code ? ' selected' : ''}>${f.text}</option>`).join('')}</select>`;
+function smSelect(cur, blank, attr, allowNone) {
+  const noneOpt = allowNone ? `<option value="N"${cur === 'N' ? ' selected' : ''}>🚫 Not scheduled — remove from schedule</option>` : '';
+  return `<select ${attr}><option value="">${blank}</option>${SM_FREQ.map(f => `<option value="${f.code}"${cur === f.code ? ' selected' : ''}>${f.text}</option>`).join('')}${noneOpt}</select>`;
 }
 const smTodayMix = f => { const c = {}; f.eqs.forEach(e => { c[e.freq] = (c[e.freq] || 0) + 1; }); return Object.keys(c).map(k => SM_NAME[k] + ' ×' + c[k]).join(', '); };
 
@@ -246,7 +249,7 @@ function smRender() {
       <td>${smSelect(SM.draft.fam[f.name] || '', 'No change', `data-famsel="${escHtml(f.name)}"`)}</td></tr>`;
     if (open) (famHit ? f.eqs : eqHits).forEach(e => {
       h += `<tr class="sub ${SM.draft.eq[e.name] ? 'chg' : ''}"><td></td><td style="padding-left:22px">${escHtml(e.name)} <span class="sm-sub">loc ${escHtml(e.loc || '?')}</span></td><td></td><td>${SM_NAME[e.freq]}</td>
-        <td>${smSelect(SM.draft.eq[e.name] || '', 'Same as family', `data-eqsel="${escHtml(e.name)}"`)}</td></tr>`;
+        <td>${smSelect(SM.draft.eq[e.name] || '', 'Same as family', `data-eqsel="${escHtml(e.name)}"`, true)}</td></tr>`;
     });
   });
   h += '</tbody></table></div>';
@@ -268,7 +271,9 @@ function smRender() {
       ${tile('Equipment: weekly · 10-day · fortnightly · monthly', `${cnt.W} · ${cnt.T} · ${cnt.F} · ${cnt.M}`, '')}
       ${tile('Visits that keep their day', p.diff.visitsKept.toLocaleString(), p.diff.visitsMoved.toLocaleString() + ' move or are new')}
     </div>`;
-    if (p.diff.changed.length) h += `<div class="sm-sub" style="margin:8px 0 4px">Equipment with a changed frequency (${p.diff.changed.length}):</div><div class="sm-chgs">${p.diff.changed.slice(0, 40).map(c => `<span>${escHtml(c.eq)}: ${c.from} → ${c.to} / month</span>`).join('')}${p.diff.changed.length > 40 ? `<span>… and ${p.diff.changed.length - 40} more</span>` : ''}</div>`;
+    const removedN = p.diff.changed.filter(c => c.removed).length;
+    if (removedN) h += `<div class="sm-sub" style="color:var(--red);margin:8px 0 0"><b>${removedN} equipment removed from the schedule entirely</b> (set to "Not scheduled") — not placed anywhere this month.</div>`;
+    if (p.diff.changed.length) h += `<div class="sm-sub" style="margin:8px 0 4px">Equipment with a changed frequency (${p.diff.changed.length}):</div><div class="sm-chgs">${p.diff.changed.slice(0, 40).map(c => `<span>${escHtml(c.eq)}: ${c.from} → ${c.to} / month${c.removed ? ' (removed)' : ''}</span>`).join('')}${p.diff.changed.length > 40 ? `<span>… and ${p.diff.changed.length - 40} more</span>` : ''}</div>`;
     else h += `<div class="sm-sub" style="margin:8px 0">No equipment changes frequency${p.mode === 'adjust' ? ', so the schedule stays exactly as it is' : ''}.</div>`;
     h += `<div class="sm-row"><button class="btn btn-green" data-sm="confirm"${SM.busy || !SM.dbReady ? ' disabled' : ''}>✅ Save rules &amp; generate ${p.t.label}</button><button class="btn" data-sm="discard">Discard preview</button></div></div>`;
   }

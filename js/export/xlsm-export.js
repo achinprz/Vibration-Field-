@@ -16,13 +16,22 @@ function _colRef(i){ // 0-based -> A, B, ... AA
   do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n/26) - 1; } while (n >= 0);
   return s;
 }
-function _buildSheetXml(headers, rows){
+const _SHEET_XML_DEFAULT_ROOT = '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+// extraTail = whatever sat AFTER the <drawing/> element in the template's own sheet1.xml
+// (typically <legacyDrawing/> + the <mc:AlternateContent> block that wires a Form/ActiveX
+// button's on-click macro) — carried over as-is so a button the template author drew keeps
+// working in the downloaded file, without this code needing to know button XML at all.
+// rootTag = the template's own <worksheet ...> opening tag, reused verbatim — a button block
+// uses namespace prefixes (xdr:, mc:, ...) that only the 2 namespaces hardcoded below declare;
+// without the template's full set of xmlns declarations the file is invalid XML (Excel refuses
+// or "repairs" it) even though the button markup itself is byte-for-byte unchanged.
+function _buildSheetXml(headers, rows, extraTail, rootTag){
   const numericCols = new Set([7,8,10,11,12,13,14,15,16]);
   const lastCol = _colRef(headers.length - 1);
   const totalRows = rows.length + 1;
   const parts = [];
   parts.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
-  parts.push('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+  parts.push(rootTag || _SHEET_XML_DEFAULT_ROOT);
   parts.push('<dimension ref="A1:' + lastCol + totalRows + '"/>');
   parts.push('<sheetViews><sheetView tabSelected="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" state="frozen"/></sheetView></sheetViews>');
   parts.push('<sheetFormatPr defaultRowHeight="15"/>');
@@ -50,8 +59,23 @@ function _buildSheetXml(headers, rows){
   parts.push('</sheetData>');
   parts.push('<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>');
   parts.push('<drawing r:id="rId1"/>');
+  if (extraTail) parts.push(extraTail);
   parts.push('</worksheet>');
   return parts.join('');
+}
+// Pulls the button/control markup back out of the template's own sheet1.xml, so it isn't lost
+// when the sheet gets rebuilt with real data. Returns '' if the template has none (still works —
+// the file just won't have a wired-up button, same as before this existed).
+function _extractSheetTail(originalSheetXml){
+  const m = /<drawing\b[^>]*\/>([\s\S]*)<\/worksheet>/.exec(originalSheetXml || '');
+  return m ? m[1] : '';
+}
+// The template's own <worksheet ...> opening tag (all its xmlns declarations), so a preserved
+// button's namespace prefixes (xdr:, mc:, ...) resolve. Falls back to the plain default root
+// when there's nothing to preserve (extraTail empty) or the template's tag can't be found.
+function _extractSheetHead(originalSheetXml){
+  const m = /<worksheet\b[^>]*>/.exec(originalSheetXml || '');
+  return m ? m[0] : _SHEET_XML_DEFAULT_ROOT;
 }
 
 async function downloadSQLReadingsExcel() {
@@ -82,10 +106,15 @@ async function downloadSQLReadingsExcel() {
   try {
     const zip = await JSZip.loadAsync(_vibeMonTemplateBytes());
 
-    // 1) Replace the (first) worksheet XML with our data
+    // 1) Replace the (first) worksheet XML with our data, keeping whatever button(s) the
+    // template itself has wired up (see _extractSheetTail — it reads the ORIGINAL sheet before
+    // it gets overwritten, so an updated template's buttons carry over automatically).
     const sheetPath = 'xl/worksheets/sheet1.xml';
     if (!zip.file(sheetPath)) throw new Error('Template missing ' + sheetPath);
-    zip.file(sheetPath, _buildSheetXml(SQL_EXPORT_HEADERS, rows));
+    const origSheetXml = await zip.file(sheetPath).async('string');
+    const sheetTail = _extractSheetTail(origSheetXml);
+    const sheetHead = _extractSheetHead(origSheetXml);
+    zip.file(sheetPath, _buildSheetXml(SQL_EXPORT_HEADERS, rows, sheetTail, sheetHead));
 
     // 2) Ensure sheet is named ALL_READINGS (required by the VBA macro)
     const wbPath = 'xl/workbook.xml';

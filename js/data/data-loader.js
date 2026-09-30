@@ -208,6 +208,7 @@ async function _fetchAllFromGS() {
         remarks:         r.remarks          || '',
         responsibleDept: r.responsible_dept || deptFromMaster(r.equipment),
         isDecoupled:     r.is_decoupled     || false,
+        labelSource:     r.label_source     || 'HUMAN',   // 'HUMAN' or 'AI_ACCEPTED' — supabase/readings_label_source.sql; blank/missing (column not run yet) defaults to HUMAN
         createdOn:       cleanTS(r.created_on),
         updatedOn:       cleanTS(r.updated_on)
       };

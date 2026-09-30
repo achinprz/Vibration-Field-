@@ -1,5 +1,26 @@
 /* VibeMon — History Excel export (ExcelJS) */
 
+// Auto-fit each column to what's actually in it (so "Recommendations" ends up wide and "Decoupled" ends up
+// narrow on their own, instead of a fixed guess) rather than assigning fixed widths per column. Merged cells
+// only carry a value on their first (top-left) cell — the merged-away ones read back empty, which is fine,
+// since the value's length was already counted once. wrapText is on for these sheets, so a long value grows
+// the row instead of the column past `max`.
+function _autoFitColumns(ws, { min = 8, max = 60, startRow = 1 } = {}) {
+  // startRow skips a merged title/subtitle banner above the real table — those cells only live in column 1
+  // but their long text would otherwise force that column absurdly wide.
+  ws.columns.forEach(col => {
+    let best = min;
+    col.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+      if (rowNumber < startRow) return;
+      const v = cell.value;
+      if (v == null || v === '') return;
+      const len = String(v).length;
+      if (len > best) best = len;
+    });
+    col.width = Math.min(max, best + 2);
+  });
+}
+
 // ── EXPORT HISTORY: grouped Excel with merged cells ──────────────────────
 async function exportHistoryExcel() {
   const from=document.getElementById('h-from').value;
@@ -53,10 +74,12 @@ async function exportHistoryExcel() {
 
   // ── Sheet 1: Summary ──
   const ws = wb.addWorksheet('Summary',{views:[{state:'frozen',ySplit:6}]});
+  // Starting widths only — _autoFitColumns (below, once the data is in) resizes every column to what it
+  // actually holds, so Recommendations ends up wide and Decoupled ends up narrow on their own.
   ws.columns=[
     {key:'date',width:12},{key:'equipment',width:32},{key:'unit',width:14},
     {key:'area',width:14},{key:'sev',width:18},{key:'inspector',width:16},
-    {key:'pts',width:9},{key:'recs',width:60},{key:'decoupled',width:12}
+    {key:'recs',width:60},{key:'decoupled',width:12}
   ];
 
   // Title band
@@ -127,10 +150,12 @@ async function exportHistoryExcel() {
   });
 
   ws.autoFilter={from:{row:6,column:1},to:{row:6,column:8}};
+  _autoFitColumns(ws, { min: 8, max: 80, startRow: 6 });   // Recommendations (col 7) grows to fit real text; Decoupled (col 8, just "Yes"/"No") shrinks to fit
 
   // ── Sheet 2: Detailed Readings ──
   const ws2 = wb.addWorksheet('Detailed Readings',{views:[{state:'frozen',ySplit:2}]});
   const detHdrs=['Date','Equipment','Unit','Area','Inspector','Overall Severity','Point','H Vel (mm/s)','V Vel (mm/s)','A Vel (mm/s)','Acc (g)','H Dis (µm)','V Dis (µm)','A Dis (µm)','Recommendations','Decoupled'];
+  // Starting widths only — _autoFitColumns (below) resizes to what's actually in each column.
   ws2.columns=detHdrs.map((h,i)=>({width:i===1?30:i===14?50:Math.max(h.length+2,12)}));
 
   ws2.mergeCells(1,1,1,detHdrs.length);
@@ -188,6 +213,7 @@ async function exportHistoryExcel() {
   });
 
   ws2.autoFilter={from:{row:2,column:1},to:{row:2,column:detHdrs.length}};
+  _autoFitColumns(ws2, { min: 8, max: 80, startRow: 2 });   // startRow:2 skips the merged title banner in row 1
 
   // ── Sheet 3: Template-Format (matches VibeMon_Template exactly) ──
   const ws3 = wb.addWorksheet('Reading_Entry');
@@ -261,6 +287,7 @@ async function exportHistoryExcel() {
     }
     tRow += nPts;
   });
+  _autoFitColumns(ws3, { min: 8, max: 70 });   // Recommendations (last column) grows to fit; short columns (Point, Severity…) shrink
 
   // Write & download (mobile-safe)
   const buf = await wb.xlsx.writeBuffer();

@@ -125,6 +125,7 @@ function applyFrequencyReductions(plan, resolveFreq, W) {
   const out = clonePlan(plan), idx = equipmentIndex(out), drop = new Set();
   idx.forEach(e => {
     const nf = resolveFreq(e.eq, e.freq);
+    if (nf === 'N') { e.visits.forEach(v => drop.add(v.id)); return; }   // "Not scheduled" — remove entirely
     if (!nf || !ROUNDS_OF[nf]) return;
     const n = ROUNDS_OF[nf], m = e.visits.length;
     if (n >= m) return;
@@ -160,8 +161,13 @@ function optimisePlan(rows, opts) {
   const eqs = new Map();
   rows.forEach(r => { if (!eqs.has(r[2])) eqs.set(r[2], { eq: r[2], loc: r[4], freq: r[3] }); });
   if (opts.espFortnightly) eqs.forEach(e => { if (e.freq === 'W' && /^ESP VACUUM PUMP/i.test(e.eq)) e.freq = 'F'; });
-  // frequency rules chosen by the user: resolveFreq(equipmentName, currentCode) -> new code or falsy to keep
-  if (opts.resolveFreq) eqs.forEach(e => { const f = opts.resolveFreq(e.eq, e.freq); if (f && ROUNDS_OF[f]) e.freq = f; });
+  // frequency rules chosen by the user: resolveFreq(equipmentName, currentCode) -> new code, 'N' to drop it
+  // from this schedule entirely (Not scheduled), or falsy to keep its current frequency.
+  if (opts.resolveFreq) eqs.forEach((e, key) => {
+    const f = opts.resolveFreq(e.eq, e.freq);
+    if (f === 'N') { eqs.delete(key); return; }
+    if (f && ROUNDS_OF[f]) e.freq = f;
+  });
 
   // slot table
   const slot = {};

@@ -369,8 +369,8 @@ function dsSelectDay(d, keep){
   document.getElementById('ds-sel-title').textContent =
     dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short',year:'numeric'}) +
     (wd?` — Working Day ${wd}`:(catchups.length?' — Reserve day':(isSun?' — Sunday (Off)':'')));
-  document.getElementById('ds-sel-meta').textContent = items.length?`${items.length} equipment scheduled${catchups.length?` (${catchups.length} catch-up)`:''}`:'';
   if(!items.length){
+    const lf = document.getElementById('ds-loc-tabs'); if (lf) { lf.style.display='none'; lf.innerHTML=''; }
     document.getElementById('ds-sel-empty').style.display='block';
     document.getElementById('ds-sel-empty').textContent = isSun?'Sunday — no schedule.':'No schedule for this day.';
     document.getElementById('ds-sel-wrap').style.display='none'; return;
@@ -381,7 +381,7 @@ function dsSelectDay(d, keep){
   const today = new Date(); today.setHours(0,0,0,0);
   const tbody = document.getElementById('ds-sel-body');
   const allStatesFull = window.DS_STATE_ALL || dsOccurrenceStates(DS_VIEW.y, DS_VIEW.m, dsFmt(today));
-  tbody.innerHTML = items.map((it,i)=>{
+  _dsRowsCache = items.map((it,i)=>{
     const stMapFor = allStatesFull[it._team] || {};
     const s = stMapFor[it._wd+'|'+it.n];               // reading that fulfils THIS visit (if any)
     const ownDone = !!s && s.state === 'own';         // taken by the scheduled group → green
@@ -419,12 +419,41 @@ function dsSelectDay(d, keep){
     const cuBadge = it._cu ? `<div><span class="cu-badge"title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">🔁 Catch-up</span></div>` : '';
     const cuUndo = (it._cu && typeof AUTH!=='undefined' && AUTH.role==='admin') ? `<button class="btn btn-sm" style="color:#7C3AED;border-color:#7C3AED" onclick="event.stopPropagation();dyUndo(${it._id})" title="Undo this catch-up — equipment goes back to Missed until reassigned">↩ Undo</button>` : '';
     const actionHtml = `<td class="actcell" data-label="Action"><div class="dsa">
-      ${canClick ? `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openEquipmentForEntry(${jsArg(it.n)},'daily')" title="Take Reading">📝 Take Reading</button>` : ''}
+      ${canClick ? `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openEquipmentForEntry(${jsArg(it.n)},'daily')" title="Take Reading">📝 Take</button>` : ''}
       <button class="btn btn-sm" onclick="event.stopPropagation();viewEquipHistory(${jsArg(it.n)})">👁 History</button>
       ${cuUndo}
     </div></td>`;
-    return `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsEquipMeta(dispUnit, dispArea, it.f)}${cuBadge}</td><td data-label="Loc">${escHtml(dispLoc)}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
-  }).join('');
+    const html = `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsLocFreqMeta(dispLoc, it.f)}${cuBadge}</td><td data-label="Stage/Unit">${escHtml(dsStageUnit(dispUnit, dispArea))}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
+    return { loc: dispLoc, html };
+  });
+  dsBuildLocOptions(_dsRowsCache.map(r => r.loc));
+  dsApplyLocFilter(_dsLocFilterVal);
+}
+// ── Location slicer: a horizontal row of tab buttons, spread evenly across the bar, filtering the day
+// table down to one location. Options are built fresh from what's actually scheduled that day (so a group
+// never sees a location that isn't on their own list). Selection is kept across re-renders (catch-up
+// recompute, etc.) when that location is still present; otherwise it falls back to "All".
+let _dsRowsCache = [];
+let _dsLocFilterVal = 'ALL';
+function dsBuildLocOptions(locs) {
+  const bar = document.getElementById('ds-loc-tabs');
+  if (!bar) return;
+  const uniq = Array.from(new Set(locs.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  if (!uniq.length) { bar.style.display = 'none'; bar.innerHTML = ''; _dsLocFilterVal = 'ALL'; return; }
+  if (_dsLocFilterVal !== 'ALL' && uniq.indexOf(_dsLocFilterVal) < 0) _dsLocFilterVal = 'ALL';
+  const tab = (val, label, active) => `<button type="button" class="loc-tab${active ? ' on' : ''}" data-loc="${escHtml(val)}" onclick="dsApplyLocFilter(${jsArg(val)})">${label}</button>`;
+  bar.innerHTML = tab('ALL', `All (${locs.length})`, _dsLocFilterVal === 'ALL') +
+    uniq.map(l => tab(l, '📍 ' + escHtml(l), l === _dsLocFilterVal)).join('');
+  bar.style.display = '';
+}
+function dsApplyLocFilter(val) {
+  _dsLocFilterVal = val || 'ALL';
+  const bar = document.getElementById('ds-loc-tabs');
+  if (bar) bar.querySelectorAll('.loc-tab').forEach(b => b.classList.toggle('on', b.getAttribute('data-loc') === _dsLocFilterVal));
+  const tbody = document.getElementById('ds-sel-body');
+  if (!tbody) return;
+  const rows = _dsLocFilterVal === 'ALL' ? _dsRowsCache : _dsRowsCache.filter(r => r.loc === _dsLocFilterVal);
+  tbody.innerHTML = rows.length ? rows.map(r => r.html).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:14px">No equipment at this location today.</td></tr>';
 }
 function dsPrevMonth(){ DS_VIEW.m--; if(DS_VIEW.m<0){DS_VIEW.m=11;DS_VIEW.y--;} DS_VIEW.sel=null; dsRender(); }
 function dsNextMonth(){ DS_VIEW.m++; if(DS_VIEW.m>11){DS_VIEW.m=0;DS_VIEW.y++;} DS_VIEW.sel=null; dsRender(); }
@@ -499,10 +528,22 @@ function dsFreqShort(f) {
   if (/MONTH/.test(u)) return 'Mthly';
   return u.slice(0, 6);
 }
-// the small grey line under an equipment name: unit · area · frequency
+// the small grey line under an equipment name: unit · area · frequency (used by Find equipment)
 function dsEquipMeta(unit, area, freq) {
   const parts = [unit, area].map(x => String(x || '').trim()).filter(Boolean).map(escHtml);
   const fs = dsFreqShort(freq);
   if (fs) parts.push('<span title="' + escHtml(String(freq)) + '">' + fs + '</span>');
   return parts.length ? '<div class="dsmeta">' + parts.join(' · ') + '</div>' : '';
+}
+// day table: the small grey line under an equipment name is now location · frequency (unit/area moved to their own column)
+function dsLocFreqMeta(loc, freq) {
+  const parts = []; const l = String(loc || '').trim(); if (l) parts.push(escHtml(l));
+  const fs = dsFreqShort(freq);
+  if (fs) parts.push('<span title="' + escHtml(String(freq)) + '">' + fs + '</span>');
+  return parts.length ? '<div class="dsmeta">' + parts.join(' · ') + '</div>' : '';
+}
+// day table: the "Stage/Unit" column — unit and area (process stage) joined with "/", whichever is present
+function dsStageUnit(unit, area) {
+  const u = String(unit || '').trim(), a = String(area || '').trim();
+  return (u && a) ? (u + '/' + a) : (u || a || '—');
 }

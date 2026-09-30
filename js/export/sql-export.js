@@ -106,7 +106,7 @@ const SQL_EXPORT_HEADERS = [
   'Report_ID','Date','Username','Inspector','Unit','Area','Equipment',
   'RPM','Frequency','Point','H Vel','V Vel','A Vel','Acc',
   'H Dis','V Dis','A Dis','Severity','Recommendation','Remarks',
-  'Created_On','Updated_On','Responsible_Dept','Decoupled'
+  'Created_On','Updated_On','Responsible_Dept','Decoupled','Label_Source'
 ];
 
 function _buildSQLRow(r) {
@@ -134,6 +134,7 @@ function _buildSQLRow(r) {
     r.createdOn || r.created_on || r.date || '',
     r.updatedOn || r.updated_on || r.date || '',
     r.responsibleDept || '',
-    r.isDecoupled ? 'Yes' : 'No'
+    r.isDecoupled ? 'Yes' : 'No',
+    r.labelSource || 'HUMAN'
   ];
 }
