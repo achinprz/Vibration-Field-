@@ -77,6 +77,7 @@ async function saveSession() {
 
   // Build legacy rows for local READINGS array (backward compat)
   const _nowStr = _localNowStr(); // local time string for in-memory READINGS
+  const labelSource = window._aiAcceptedForSession ? 'AI_ACCEPTED' : 'HUMAN';
   const legacyRows = readings.map(pt => ({
     reportId, date, username: AUTH.username, inspector, unit:e.unit, area:e.area,
     equipment:e.name, rpm:e.rpm||'', frequency:e.frequency||'',
@@ -84,6 +85,7 @@ async function saveSession() {
     H_Dis:pt.H_Dis, V_Dis:pt.V_Dis, A_Dis:pt.A_Dis, severity:pt.severity,
     recommendations:recsStr, remarks:extra, responsibleDept,
     isDecoupled: isDecoupled,
+    labelSource,
     createdOn:_nowStr, updatedOn:_nowStr
   }));
   READINGS.push(...legacyRows);
@@ -92,8 +94,6 @@ async function saveSession() {
   const saveBtn = document.querySelector('#entry-s4 .btn-green');
   if(saveBtn) { saveBtn.disabled=true; saveBtn.textContent='⏳ Saving...'; }
   showSavingOverlay('💾 Saving reading for ' + (e && e.name ? e.name : 'equipment') + '…');
-
-  const labelSource = window._aiAcceptedForSession ? 'AI_ACCEPTED' : 'HUMAN';
 
   const payload = {
     action: 'saveReport',

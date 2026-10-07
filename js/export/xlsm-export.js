@@ -25,13 +25,14 @@ const _SHEET_XML_DEFAULT_ROOT = '<worksheet xmlns="http://schemas.openxmlformats
 // uses namespace prefixes (xdr:, mc:, ...) that only the 2 namespaces hardcoded below declare;
 // without the template's full set of xmlns declarations the file is invalid XML (Excel refuses
 // or "repairs" it) even though the button markup itself is byte-for-byte unchanged.
-function _buildSheetXml(headers, rows, extraTail, rootTag){
+function _buildSheetXml(headers, rows, extraTail, rootTag, sheetPr, drawingBlock){
   const numericCols = new Set([7,8,10,11,12,13,14,15,16]);
   const lastCol = _colRef(headers.length - 1);
   const totalRows = rows.length + 1;
   const parts = [];
   parts.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
   parts.push(rootTag || _SHEET_XML_DEFAULT_ROOT);
+  if (sheetPr) parts.push(sheetPr);
   parts.push('<dimension ref="A1:' + lastCol + totalRows + '"/>');
   parts.push('<sheetViews><sheetView tabSelected="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" state="frozen"/></sheetView></sheetViews>');
   parts.push('<sheetFormatPr defaultRowHeight="15"/>');
@@ -58,7 +59,7 @@ function _buildSheetXml(headers, rows, extraTail, rootTag){
   });
   parts.push('</sheetData>');
   parts.push('<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>');
-  parts.push('<drawing r:id="rId1"/>');
+  if (drawingBlock) parts.push(drawingBlock);
   if (extraTail) parts.push(extraTail);
   parts.push('</worksheet>');
   return parts.join('');
@@ -73,6 +74,20 @@ function _extractSheetTail(originalSheetXml){
 // The template's own <worksheet ...> opening tag (all its xmlns declarations), so a preserved
 // button's namespace prefixes (xdr:, mc:, ...) resolve. Falls back to the plain default root
 // when there's nothing to preserve (extraTail empty) or the template's tag can't be found.
+// The template sheet's <sheetPr codeName="..."/> — ties the sheet to its VBA sheet module, so keep it.
+function _extractSheetPr(originalSheetXml){
+  const m = /<sheetPr\b[^>]*\/>|<sheetPr\b[^>]*>[\s\S]*?<\/sheetPr>/.exec(originalSheetXml || '');
+  return m ? m[0] : '';
+}
+// The template's own <pageSetup .../> + <drawing .../> elements, verbatim. Their r:id values are
+// whatever THIS template's sheet1.xml.rels assigns (a template saved with printer settings has the
+// drawing at rId2, not rId1) — hardcoding an id points the drawing at the wrong part and Excel
+// reports the file as corrupt and drops the shape/button.
+function _extractDrawingBlock(originalSheetXml){
+  const ps = /<pageSetup\b[^>]*\/>/.exec(originalSheetXml || '');
+  const dr = /<drawing\b[^>]*\/>/.exec(originalSheetXml || '');
+  return (ps ? ps[0] : '') + (dr ? dr[0] : '');
+}
 function _extractSheetHead(originalSheetXml){
   const m = /<worksheet\b[^>]*>/.exec(originalSheetXml || '');
   return m ? m[0] : _SHEET_XML_DEFAULT_ROOT;
@@ -114,7 +129,7 @@ async function downloadSQLReadingsExcel() {
     const origSheetXml = await zip.file(sheetPath).async('string');
     const sheetTail = _extractSheetTail(origSheetXml);
     const sheetHead = _extractSheetHead(origSheetXml);
-    zip.file(sheetPath, _buildSheetXml(SQL_EXPORT_HEADERS, rows, sheetTail, sheetHead));
+    zip.file(sheetPath, _buildSheetXml(SQL_EXPORT_HEADERS, rows, sheetTail, sheetHead, _extractSheetPr(origSheetXml), _extractDrawingBlock(origSheetXml)));
 
     // 2) Ensure sheet is named ALL_READINGS (required by the VBA macro)
     const wbPath = 'xl/workbook.xml';
