@@ -50,7 +50,7 @@ function dsqRefresh() {
   const S = dsScheduleFor(y, m), wds = dsWorkingDaysOfMonth(y, m);
   let states = {};
   try { states = dsOccurrenceStates(y, m, dsFmt(today)); } catch (e) { console.warn('schedule search: states failed', e); }
-  const cuRows = (((typeof DY_CACHE !== 'undefined' && DY_CACHE[y + '-' + m]) || {}).rows || []).filter(r => r.status === 'active');
+  const cuRows = (((typeof DY_CACHE !== 'undefined' && DY_CACHE[y + '-' + m]) || {}).rows || []).filter(r => r.status === 'active' && !(typeof dyCatchupObsolete === 'function' && dyCatchupObsolete(r)));
 
   const occ = [];
   Object.keys(S).forEach(team => wds.forEach((dt, i) => {
@@ -74,12 +74,14 @@ function dsqRefresh() {
     if (s) {
       const p = String(s.date).split('-'); readOn = p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s.date;
       const team = s.by ? (TEAM_NAME[s.by] || s.by) : '';
-      by = [team, s.insp].filter(Boolean).join(' · ') || '—';
+      const insp = (s.insp && team && String(s.insp).trim().toUpperCase() === String(team).trim().toUpperCase()) ? '' : s.insp;   // the inspector is often just the group's own name — don't print it twice
+      by = [team, insp].filter(Boolean).join(' · ') || '—';
       if (s.delta) timing = ` <span class="dsq-sub">(${Math.abs(s.delta)} d ${s.delta < 0 ? 'early' : 'late'})</span>`;
     }
     let label, bg;
-    if (st.k === 'done') { label = '<b style="color:var(--green)">✓ Done</b>' + timing; bg = '#D5F5E3'; }
-    else if (st.k === 'covered') { label = '<b style="color:#92400E">⚠ Covered by another group</b>' + timing; bg = '#FEF08A'; }
+    const viaCu = (s && s.cu) ? ' <span class="cu-badge" title="Missed, re-scheduled as a catch-up and completed">🔁 Catch-up</span>' : '';
+    if (st.k === 'done') { label = '<b style="color:var(--green)">✓ Done</b>' + timing + viaCu; bg = '#D5F5E3'; }
+    else if (st.k === 'covered') { label = '<b style="color:#92400E">⚠ Covered by another group</b>' + timing + viaCu; bg = '#FEF08A'; }
     else if (st.k === 'upcoming') { label = '<span class="dsq-sub">Upcoming</span>'; bg = '#EFF6FF'; }
     else if (st.k === 'today') { label = '<b style="color:#C2410C">Pending today</b>'; bg = '#FFEDD5'; }
     else { label = '<b style="color:var(--red)">✗ Missed</b>'; bg = '#FEE2E2'; }

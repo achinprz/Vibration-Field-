@@ -20,7 +20,7 @@ async function tabRefresh(tab) {
     if (tab === 'history')  renderHistory  && renderHistory();
     if (tab === 'entry')    filterEntryList && filterEntryList();
     if (tab === 'daily')    dsRender        && dsRender();
-    if (tab === 'missed')   { try{mrRender();}catch(e){} }
+    if (tab === 'catchups') { try{csRender(true);}catch(e){} }
 
     // Brief success flash
     if (refreshBtn) {

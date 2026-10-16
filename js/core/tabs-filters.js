@@ -25,7 +25,7 @@ function populateFilters() {
 }
 
 function showTab(t) {
-  if (!['entry','history','daily','missed'].includes(t)) { showTab('daily'); return; }
+  if (!['entry','history','daily','catchups'].includes(t)) { showTab('daily'); return; }
   if (t==='entry' && AUTH.role==='viewer') { alert('Viewers cannot access Data Entry. Please login as Engineer or Admin.'); showTab('history'); return; }
   // Offline mode: only Data Entry is accessible
   if (document.body.classList.contains('offline-mode') && t !== 'entry') {
@@ -44,7 +44,7 @@ function showTab(t) {
   });
   if(t==='history') renderHistory();
   if(t==='daily') { dsRender(); }
-  if(t==='missed') { mrRender(); }
+  if(t==='catchups') { try { csRender(); } catch(e) { console.error('csRender failed:', e); } }
   // Update mobile bottom nav
   document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('active'));
   const mbTab=document.getElementById('mb-'+t);

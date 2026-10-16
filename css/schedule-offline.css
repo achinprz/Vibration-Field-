@@ -13,10 +13,6 @@ tr.row-today { background: #FEF3C7 !important; }
 tr.row-overdue { background: #FEE2E2 !important; }
 tr.row-done { background: #D5F5E3 !important; }
 tr.row-future { background: #EFF6FF !important; }
-/* Missed readings status badge */
-.mr-badge-ok { background:#D5F5E3;color:#1E8449; }
-.mr-badge-overdue { background:#FFEDD5;color:#EA580C; }
-.mr-badge-critical { background:#FEE2E2;color:#991B1B; }
 
 /* OFFLINE PILL */
 #vm-offline-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:.2s}

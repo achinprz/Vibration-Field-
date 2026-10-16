@@ -31,10 +31,10 @@ function dsCurrentTeam(){
   const role = (A && A.role) || 'viewer';
   if(role==='admin'){
     const sel = document.getElementById('ds-team-admin') || document.getElementById('dp-team-admin');
-    const v = sel ? sel.value : 'auto';
+    const v = sel ? sel.value : 'ALL';
     if(v && v!=='auto') return v;
-    // admin default: Precise
-    return 'Precise';
+    // admin default: every group
+    return 'ALL';
   }
   const u = (A && A.username) || '';
   return USER_TEAM_MAP[u] || USER_TEAM_MAP[String(u).trim()] || null;
@@ -121,7 +121,7 @@ let _dsOccMemo = null;
 function dsOccurrenceStates(y, m, uptoStr){
   const rd = dsReadingsArr() || [];
   const S = dsScheduleFor(y, m);   // the schedule version in force in that month
-  const sig = [y, m, uptoStr||'', rd.length, dsVersionFor(y, m), JSON.stringify(Object.keys(S).map(t=>Object.keys(S[t]||{}).length))].join('|');
+  const sig = [y, m, uptoStr||'', rd.length, dsVersionFor(y, m), JSON.stringify(Object.keys(S).map(t=>Object.keys(S[t]||{}).length)), (typeof dyCuSig==='function'?dyCuSig(y,m):'')].join('|');
   if(_dsOccMemo && _dsOccMemo.sig === sig && Date.now() - _dsOccMemo.t < 300) return _dsOccMemo.val;
   const wds = dsWorkingDaysOfMonth(y,m);
   const lastDay = new Date(y,m+1,0).getDate();
@@ -178,6 +178,26 @@ function dsOccurrenceStates(y, m, uptoStr){
       (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: b.ds, by, insp: b.e.insp[by] || '', delta: b.d - o.day };
     });
   });
+  // 4. second pass — a visit still unmatched (typically the first visit of a fortnightly machine that was missed) takes a LATER
+  //    reading that no other visit used: two readings in a month fill two visits, wherever in the month they fall. A reading can
+  //    still never fill two visits.
+  Object.keys(occ).forEach(k=>{
+    if(!reads[k]) return;
+    const list = occ[k], used = new Set();
+    list.forEach(o=>{ const s = (out[o.team]||{})[o.key]; if(s) used.add(s.date); });
+    const free = Object.keys(reads[k]).sort().filter(ds=>!used.has(ds));
+    if(!free.length) return;
+    list.filter(o=>!(out[o.team]||{})[o.key]).sort((a,b)=>a.day-b.day).forEach(o=>{
+      let bi = -1, bd = 1e9;
+      free.forEach((ds,i)=>{ const d = parseInt(ds.slice(8,10),10); if(d <= o.day) return; if(d - o.day < bd){ bd = d - o.day; bi = i; } });
+      if(bi < 0) return;
+      const ds = free.splice(bi,1)[0], e = reads[k][ds], d = parseInt(ds.slice(8,10),10);
+      const own = e.teams.has(o.team) || e.teams.has('');
+      const by = own ? (e.teams.has(o.team) ? o.team : '') : (Array.from(e.teams).find(t=>t && t !== o.team) || '');
+      (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: ds, by, insp: e.insp[by] || '', delta: d - o.day };
+    });
+  });
+  try { if (typeof dyAugmentStates === 'function') dyAugmentStates(out, y, m, uptoStr || dsFmt(new Date())); } catch(e){ console.warn('dyAugmentStates failed:', e); }
   _dsOccMemo = { sig, t: Date.now(), val: out };
   return out;
 }
@@ -211,12 +231,29 @@ function dsItemsForTeamWD(team, wd, y, m){
       items.forEach(it=>{
         if(!it || !it.n) return;
         const key = normalizeEquipName(it.n);
-        if(!seen[key]){ seen[key]=true; merged.push(it); }
+        if(!seen[key]){ seen[key]=true; merged.push(Object.assign({}, it, { _team: t })); }   // _team = the group whose list it came from, so its status is looked up under the right group
       });
     });
     return merged;
   }
-  return (S[team] && S[team][String(wd)]) || [];
+  // one group's list: an equipment is never shown twice on the same day
+  const seen1 = {};
+  return ((S[team] && S[team][String(wd)]) || []).filter(it=>{
+    if(!it || !it.n) return false;
+    const key = normalizeEquipName(it.n);
+    if(seen1[key]) return false;
+    seen1[key] = true; return true;
+  });
+}
+
+// "All groups" view: a visit counts as done if ANY group's reading fulfils it (same rule the calendar uses).
+function dsAnyState(allStates, wd, name){
+  let best = null;
+  Object.keys(allStates || {}).forEach(t=>{
+    const s = (allStates[t] || {})[wd+'|'+name];
+    if(s && (!best || (s.state==='own' && best.state!=='own'))) best = s;
+  });
+  return best ? Object.assign({}, best, { state:'own' }) : null;
 }
 
 // Returns the completion map for a month, merged across ALL teams when team === 'ALL'.
@@ -313,7 +350,7 @@ function dsRender(){
     if(items.length || catchups.length){
       let own=0, other=0;
       items.forEach(it=>{ const s = stMap[wd+'|'+it.n]; if(s){ if(s.state==='own') own++; else other++; } });
-      catchups.forEach(c=>{ const os = (window.DS_STATE_ALL[c.original_team]||{})[c.original_day+'|'+c.equipment]; if(os){ if(os.state==='own') own++; else other++; } });
+      catchups.forEach(c=>{ const os = dyCatchupState(c, window.DS_STATE_ALL); if(os){ if(os.state==='own') own++; else other++; } });
       const total = items.length+catchups.length, open = total-own-other;
       prog = total?Math.round((own+other)/total*100):0;
       const fullClass = other ? ' covered' : ' done';
@@ -364,8 +401,8 @@ function dsSelectDay(d, keep){
   const catchups = (typeof dyActiveFor === 'function') ? dyActiveFor(DS_VIEW.y, DS_VIEW.m, team, dateStr) : [];
   // One list: native items keep their own (team,wd) identity; catch-up items keep the ORIGINAL
   // team/wd they belong to, so their status is looked up from where they were actually scheduled.
-  const items = baseItems.map(it=>({ n:it.n, u:it.u, a:it.a, f:it.f, l:it.l, _team:team, _wd:wd, _cu:false }))
-    .concat(catchups.map(c=>{ const inf = dsScheduleInfo(c.equipment); return ({ n:c.equipment, u:'', a:'', f:inf.f, l:c.location || inf.l, _team:c.original_team, _wd:c.original_day, _cu:true, _srcTeam:c.assigned_team, _origDate:c.original_date, _source:c.source, _id:c.id }); }));
+  const items = baseItems.map(it=>({ n:it.n, u:it.u, a:it.a, f:it.f, l:it.l, _team:(team==='ALL'?'ALL':(it._team||team)), _wd:wd, _cu:false }))
+    .concat(catchups.map(c=>{ const inf = dsScheduleInfo(c.equipment); return ({ n:c.equipment, u:'', a:'', f:inf.f, l:c.location || inf.l, _team:c.original_team, _wd:c.original_day, _cu:true, _srcTeam:c.assigned_team, _origDate:c.original_date, _source:c.source, _id:c.id, _row:c }); }));
   document.getElementById('ds-sel-title').textContent =
     dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short',year:'numeric'}) +
     (wd?` — Working Day ${wd}`:(catchups.length?' — Reserve day':(isSun?' — Sunday (Off)':'')));
@@ -382,8 +419,10 @@ function dsSelectDay(d, keep){
   const tbody = document.getElementById('ds-sel-body');
   const allStatesFull = window.DS_STATE_ALL || dsOccurrenceStates(DS_VIEW.y, DS_VIEW.m, dsFmt(today));
   _dsRowsCache = items.map((it,i)=>{
-    const stMapFor = allStatesFull[it._team] || {};
-    const s = stMapFor[it._wd+'|'+it.n];               // reading that fulfils THIS visit (if any)
+    // reading that fulfils THIS visit (if any): a catch-up row also counts a reading taken on its own catch-up day;
+    // in the "All groups" view a regular visit counts if any group read it
+    const s = it._cu ? dyCatchupState(it._row, allStatesFull)
+            : (it._team === 'ALL' ? dsAnyState(allStatesFull, it._wd, it.n) : (allStatesFull[it._team] || {})[it._wd+'|'+it.n]);
     const ownDone = !!s && s.state === 'own';         // taken by the scheduled group → green
     const coveredByOther = !!s && s.state === 'other';// taken by another group → yellow
     const future = dt > today;
@@ -416,6 +455,10 @@ function dsSelectDay(d, keep){
     // plus a badge — so both "what happened" and "is this a re-assigned reading" are visible at once.
     const cuStyle = it._cu ? 'box-shadow:inset 4px 0 0 #7C3AED;' : '';
     const clickAttr = canClick ? `style="cursor:pointer;${cuStyle}${rowBg}" onclick="openEquipmentForEntry(${jsArg(it.n)},'daily')" title="${escHtml(stateTip)} — click to take reading"` : `style="${cuStyle}${rowBg}" title="${escHtml(stateTip)}"`;
+    // still unread, but re-assigned as a catch-up: say so under the name (the row stays red)
+    const pendCu = (!it._cu && !s && typeof dyPendingCatchupFor === 'function') ? dyPendingCatchupFor(DS_VIEW.y, DS_VIEW.m, it._team, it._wd, it.n) : null;
+    const cuPendBadge = pendCu ? `<div><span class="cu-badge" title="Re-assigned as a catch-up on ${escHtml(dsShortDate(String(pendCu.assigned_date).slice(0,10)))} for ${escHtml(TEAM_NAME[pendCu.assigned_team]||pendCu.assigned_team)} — still not completed">🔁 Catch-up · ${escHtml(dsShortDate(String(pendCu.assigned_date).slice(0,10)))}</span></div>` : '';
+    const cuDoneBadge = (!it._cu && s && s.cu) ? `<div><span class="cu-badge" title="Missed on the day, re-scheduled as a catch-up and completed — counted as done">🔁 Catch-up</span></div>` : '';
     const cuBadge = it._cu ? `<div><span class="cu-badge"title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">🔁 Catch-up</span></div>` : '';
     const cuUndo = (it._cu && typeof AUTH!=='undefined' && AUTH.role==='admin') ? `<button class="btn btn-sm" style="color:#7C3AED;border-color:#7C3AED" onclick="event.stopPropagation();dyUndo(${it._id})" title="Undo this catch-up — equipment goes back to Missed until reassigned">↩ Undo</button>` : '';
     const actionHtml = `<td class="actcell" data-label="Action"><div class="dsa">
@@ -423,7 +466,7 @@ function dsSelectDay(d, keep){
       <button class="btn btn-sm" onclick="event.stopPropagation();viewEquipHistory(${jsArg(it.n)})">👁 History</button>
       ${cuUndo}
     </div></td>`;
-    const html = `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsLocFreqMeta(dispLoc, it.f)}${cuBadge}</td><td data-label="Stage/Unit">${escHtml(dsStageUnit(dispUnit, dispArea))}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
+    const html = `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsLocFreqMeta(dispLoc, it.f)}${cuBadge}${cuDoneBadge}${cuPendBadge}</td><td data-label="Stage/Unit">${escHtml(dsStageUnit(dispUnit, dispArea))}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
     return { loc: dispLoc, html };
   });
   dsBuildLocOptions(_dsRowsCache.map(r => r.loc));

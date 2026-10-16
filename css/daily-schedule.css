@@ -67,7 +67,7 @@
     .dsv-nav-btn:hover{background:rgba(59,130,246,.08)}
     .dsv-nav-btn.on{background:rgba(59,130,246,.22);color:var(--text-main,var(--blue-text));box-shadow:inset 3px 0 0 #3b82f6}
     .dsv-ic{width:20px;text-align:center;flex:0 0 20px}
-    body:not(.role-admin) #dsv-nav-cmp{display:none}
+    body:not(.role-admin) #dsv-nav-cmp,body:not(.role-admin) #dsv-nav-cus{display:none}
     .dsv-content{flex:1;min-width:0}
     .dsv-pane{display:none}
     .dsv-pane.on{display:block}
@@ -151,3 +151,61 @@
       cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .loc-tab:hover{background:rgba(59,130,246,.08)}
     .loc-tab.on{background:#1D4E8A;border-color:#1D4E8A;color:#fff}
+
+/* ── Find equipment table: readable column widths ──
+   The day-table rules above (Equipment 215px, 2nd column 215px, 4th column 112px, break-word everywhere) squeezed the
+   Group / Read-on columns into slivers ("Preci / se / Grou / p", "13/ 10/ 20 26"). This table has its own widths:
+   names and group names wrap only BETWEEN words (never mid-word), dates stay on one line, Loc is a narrow column. */
+@media(min-width:761px){
+  .ds-equip-tbl.dsq-tbl{width:100%;table-layout:auto}
+  .ds-equip-tbl.dsq-tbl thead th,.ds-equip-tbl.dsq-tbl tbody td{word-break:normal;overflow-wrap:normal;hyphens:manual;vertical-align:top}
+  .ds-equip-tbl.dsq-tbl th:nth-child(1),.ds-equip-tbl.dsq-tbl td.eqcell{width:22%;min-width:150px}
+  .ds-equip-tbl.dsq-tbl th:nth-child(2){width:auto;min-width:96px}
+  .ds-equip-tbl.dsq-tbl th:nth-child(3),.ds-equip-tbl.dsq-tbl td:nth-child(3){min-width:120px}
+  .ds-equip-tbl.dsq-tbl th:nth-child(4),.ds-equip-tbl.dsq-tbl td:nth-child(4){min-width:0;width:44px;text-align:center}
+  .ds-equip-tbl.dsq-tbl th:nth-child(5),.ds-equip-tbl.dsq-tbl td:nth-child(5){min-width:160px}
+  .ds-equip-tbl.dsq-tbl th:nth-child(6),.ds-equip-tbl.dsq-tbl td:nth-child(6){min-width:86px;white-space:nowrap}
+  .ds-equip-tbl.dsq-tbl th:nth-child(7),.ds-equip-tbl.dsq-tbl td:nth-child(7){min-width:130px}
+  .ds-equip-tbl.dsq-tbl td.eqcell strong,.ds-equip-tbl.dsq-tbl .dsq-eq{word-break:normal;overflow-wrap:break-word}
+}
+/* ── Catch-up Summary tab ── */
+.cs-month{background:var(--bg-card-header,var(--bg));border:1px solid var(--border-color,var(--border));border-radius:8px;padding:10px 12px;margin-bottom:10px;color:var(--text-body,var(--text))}
+.cs-month-h{font-weight:700;font-size:13px;margin-bottom:6px;color:var(--text-main,var(--text))}
+.cs-bar-val{color:var(--text-main,var(--text))}
+.cs-none{font-size:12px;color:var(--muted);padding:4px 0}
+.cs-sub{font-size:11.5px;color:var(--text-muted,var(--muted))}
+.cs-bar-row{display:flex;align-items:center;gap:8px;margin-top:5px}
+.cs-bar-name{width:150px;flex:0 0 150px;font-size:11.5px;color:var(--text-muted,var(--muted));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-bar{flex:1;height:10px;background:rgba(128,128,128,.25);border-radius:5px;overflow:hidden;display:flex}
+.cs-bar i{display:block;height:100%}
+.cs-bar-val{flex:0 0 104px;text-align:right;font-size:11px;font-weight:700}
+.cs-legend{margin-left:6px;font-size:10px}
+.cs-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 8px;vertical-align:-1px}
+.cs-grp{display:inline-block;margin:1px 3px 1px 0;padding:0 7px;border:1px solid;border-radius:999px;font-size:10.5px;background:#fff;color:#1a1d23;white-space:nowrap}
+.cs-tbl tbody td{color:#1a1d23 !important}
+@media(min-width:761px){
+  .ds-equip-tbl.cs-tbl th,.ds-equip-tbl.cs-tbl td{word-break:normal;overflow-wrap:normal;hyphens:manual;vertical-align:top}
+  .ds-equip-tbl.cs-tbl th:nth-child(1),.ds-equip-tbl.cs-tbl td.eqcell{width:24%;min-width:170px}
+  .ds-equip-tbl.cs-tbl th:nth-child(4),.ds-equip-tbl.cs-tbl td:nth-child(4){min-width:100px}
+  .ds-equip-tbl.cs-tbl th:nth-child(6),.ds-equip-tbl.cs-tbl td:nth-child(6){min-width:190px}
+  .ds-equip-tbl.cs-tbl th:nth-child(7),.ds-equip-tbl.cs-tbl td:nth-child(7){min-width:140px}
+}
+@media(max-width:760px){ .cs-bar-name{width:92px;flex-basis:92px} .cs-bar-val{flex-basis:84px} }
+
+/* ── Catch-up summary section: clickable chips + coloured bar pieces, detail table ── */
+.cua-chip{border:0;cursor:pointer;font-family:inherit}
+.cua-chip:hover:not([disabled]){filter:brightness(.94);box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.cua-chip[disabled]{opacity:.45;cursor:default}
+.cua-bar{height:16px}
+.cua-seg{display:block;height:100%;border:0;padding:0;margin:0;cursor:pointer;min-width:3px}
+.cua-seg:hover{filter:brightness(.88);box-shadow:inset 0 0 0 2px rgba(0,0,0,.25)}
+.cua-detail-card{border:1px solid var(--border-color,var(--border));border-radius:8px;padding:10px 12px;background:var(--bg-card-header,var(--bg))}
+.cua-detail-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;color:var(--text-main,var(--text))}
+.cua-tbl tbody td{color:#1a1d23 !important}
+@media(min-width:761px){
+  .ds-equip-tbl.cua-tbl th,.ds-equip-tbl.cua-tbl td{word-break:normal;overflow-wrap:normal;hyphens:manual;vertical-align:top}
+  .ds-equip-tbl.cua-tbl th:nth-child(1),.ds-equip-tbl.cua-tbl td.eqcell{width:24%;min-width:170px}
+  .ds-equip-tbl.cua-tbl th:nth-child(2),.ds-equip-tbl.cua-tbl td:nth-child(2){min-width:120px}
+  .ds-equip-tbl.cua-tbl th:nth-child(3),.ds-equip-tbl.cua-tbl td:nth-child(3){min-width:120px}
+  .ds-equip-tbl.cua-tbl th:nth-child(5),.ds-equip-tbl.cua-tbl td:nth-child(5){min-width:190px}
+}

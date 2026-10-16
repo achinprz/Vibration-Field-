@@ -235,6 +235,11 @@ function applyAuth() {
   const mbLogin  = document.getElementById('mb-login-btn');
   if (mbLogout) mbLogout.style.display = AUTH.role === 'viewer' ? 'none' : 'flex';
   if (mbLogin)  mbLogin.style.display  = AUTH.role === 'viewer' ? 'flex' : 'none';
+  // Admin on mobile: the Settings (admin panel / users) tab replaces the Theme tab — theme moved into the admin panel
+  const mbAdmin = document.getElementById('mb-admin-btn');
+  const mbTheme = document.getElementById('mb-theme');
+  if (mbAdmin) mbAdmin.style.display = AUTH.role === 'admin' ? 'flex' : 'none';
+  if (mbTheme) mbTheme.style.display = AUTH.role === 'admin' ? 'none' : '';
   // If viewer happens to be on a hidden tab, send them to history
   if (AUTH.role !== 'admin') {
     const cur = document.querySelector('.screen.active');

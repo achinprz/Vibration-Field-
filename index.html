@@ -39,9 +39,9 @@ if ('serviceWorker' in navigator) {
 <link rel="stylesheet" href="css/components.css?v=20260922">
 <link rel="stylesheet" href="css/auth-admin.css?v=20260925b">
 <link rel="stylesheet" href="css/responsive.css?v=20260922">
-<link rel="stylesheet" href="css/schedule-offline.css?v=20260922">
+<link rel="stylesheet" href="css/schedule-offline.css?v=20261018">
 <link rel="stylesheet" href="css/theme.css?v=20260922">
-<link rel="stylesheet" href="css/daily-schedule.css?v=20260929b">
+<link rel="stylesheet" href="css/daily-schedule.css?v=20261020">
 <link rel="stylesheet" href="css/autocomplete.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-manager.css?v=20260922">
 <link rel="stylesheet" href="css/equipment-manager.css?v=20260927b">
@@ -71,7 +71,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab active requires-editor" onclick="showTab('entry')">✏️ Data Entry</button>
     <button class="nav-tab requires-online" onclick="showTab('history')">📋 History</button>
     <button class="nav-tab requires-editor requires-online" onclick="showTab('daily')">📅 Daily Schedule</button>
-    <button class="nav-tab requires-editor requires-online" onclick="showTab('missed')">🚫 Missed Readings</button>
+    <button class="nav-tab requires-editor requires-online" onclick="showTab('catchups')">⏳ Pending Equip</button>
   </div>
   <div class="nav-user requires-editor">
     <span>Inspector:</span>
@@ -101,11 +101,14 @@ if ('serviceWorker' in navigator) {
   <button class="mobile-tab requires-editor requires-online" id="mb-daily" onclick="showTab('daily')">
     <span class="tab-icon">&#x1F4C5;</span>Daily
   </button>
-  <button class="mobile-tab requires-editor requires-online" id="mb-missed" onclick="showTab('missed')">
-    <span class="tab-icon">&#x1F6AB;</span>Missed
+  <button class="mobile-tab requires-editor requires-online" id="mb-catchups" onclick="showTab('catchups')">
+    <span class="tab-icon">&#x23F3;</span>Pending
   </button>
   <button class="mobile-tab" id="mb-theme" onclick="toggleTheme()" title="Toggle Theme">
     <span class="tab-icon">&#x1F313;</span>Theme
+  </button>
+  <button class="mobile-tab" id="mb-admin-btn" style="display:none" onclick="openAdminPanel()" title="Admin settings &amp; users">
+    <span class="tab-icon">&#x2699;&#xFE0F;</span>Settings
   </button>
   <button class="mobile-tab" id="mb-logout-btn" style="display:none" onclick="doLogout()">
     <span class="tab-icon">&#x1F6AA;</span>Logout
@@ -354,8 +357,7 @@ if ('serviceWorker' in navigator) {
     <span class="ds-pill" id="ds-user-pill">—</span>
     <div style="flex:1"></div>
     <select id="ds-team-admin" class="grpsel requires-admin" onchange="dsSyncTeamSelect(this.value)" style="display:none">
-      <option value="auto">My team (auto)</option>
-      <option value="ALL">All Groups</option>
+      <option value="ALL" selected>All Groups</option>
       <option value="Precise">Precise Group</option>
       <option value="CB">Chaitanya Bharthi Group</option>
       <option value="CBA">Chaitanya Bharthi Group A</option>
@@ -376,6 +378,7 @@ if ('serviceWorker' in navigator) {
       <button class="dsv-nav-btn"    data-dsv="find" onclick="dsvSelect('find')"><span class="dsv-ic">🔎</span><span>Find equipment</span></button>
       <button class="dsv-nav-btn"    data-dsv="perf" onclick="dsvSelect('perf')"><span class="dsv-ic">📊</span><span>Performance</span></button>
       <button class="dsv-nav-btn"    data-dsv="cmp"  id="dsv-nav-cmp" onclick="dsvSelect('cmp')"><span class="dsv-ic">📈</span><span>Team comparison</span></button>
+      <button class="dsv-nav-btn"    data-dsv="cus"  id="dsv-nav-cus" onclick="dsvSelect('cus')"><span class="dsv-ic">🔁</span><span>Catch-up summary</span></button>
     </nav>
     <div class="dsv-content">
       <div class="dsv-pane on" data-dsv="cal">
@@ -455,62 +458,60 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
       </div>
+      <div class="dsv-pane" data-dsv="cus">
+  <div class="card">
+    <div class="card-head" style="background:#EFF6FF">
+      <span class="card-title" style="color:var(--blue-text)">🔁 Catch-up summary</span>
+      <span style="font-size:11px;color:var(--muted)">Admin view · last 3 months · click any chip or coloured bar</span>
+    </div>
+    <div class="card-body" style="padding:10px 12px">
+      <div id="cua-body"><div class="cs-none">Loading…</div></div>
+      <div id="cua-detail" style="display:none;margin-top:10px"></div>
+    </div>
+  </div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- ── PENDING DAILY SCHEDULE TAB ── -->
-<!-- ── MISSED READINGS TAB ── -->
-<div class="screen" id="tab-missed">
+<!-- ── PENDING EQUIP TAB ── -->
+<div class="screen" id="tab-catchups">
   <div class="ds-head">
-    <div style="font-weight:700;font-size:16px;color:var(--red)">🚫 Missed Readings</div>
+    <div style="font-weight:700;font-size:16px;color:var(--blue-text)">⏳ Pending Equip</div>
     <div style="flex:1"></div>
-    <select id="mr-period" onchange="mrRender()" class="grpsel" style="font-size:12px">
-      <option value="1">Last Month</option>
-      <option value="2">Last 2 Months</option>
-      <option value="3">Last 3 Months</option>
-      <option value="custom">Custom Range</option>
-    </select>
-    <button class="btn btn-sm" onclick="mrRender()">🔄 Refresh</button>
-    <button class="btn btn-sm" onclick="mrExport()">📥 Excel</button>
+    <button class="btn btn-sm" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text)" onclick="tabRefresh('catchups')" title="Fetch latest readings from Supabase">🔄 Refresh Data</button>
   </div>
-  <!-- Custom date range (shown only when custom selected) -->
-  <div id="mr-custom-range" style="display:none;margin-bottom:10px;display:none">
-    <div class="filter-bar">
-      <input type="date" id="mr-from" placeholder="From" style="flex:1">
-      <input type="date" id="mr-to" placeholder="To" style="flex:1">
-      <button class="btn btn-sm btn-primary" onclick="mrRender()">Apply</button>
-    </div>
-  </div>
-  <!-- Filters -->
-  <div class="filter-bar" style="margin-bottom:10px">
-    <select id="mr-f-group" onchange="mrApplyFilters()" style="flex:1;min-width:120px"><option value="">All Groups</option></select>
-    <select id="mr-f-unit" onchange="mrApplyFilters()" style="flex:1;min-width:90px"><option value="">All Units</option></select>
-    <select id="mr-f-area" onchange="mrApplyFilters()" style="flex:1;min-width:90px"><option value="">All Areas</option></select>
-    <select id="mr-f-days" onchange="mrApplyFilters()" style="flex:1;min-width:120px">
-      <option value="">All Days Since</option>
-      <option value="30">30+ days</option>
-      <option value="60">60+ days</option>
-      <option value="90">90+ days</option>
-      <option value="180">180+ days</option>
-    </select>
-    <input type="text" id="mr-f-search" placeholder="🔍 Search equipment..." oninput="mrApplyFilters()" style="flex:2;min-width:140px">
-    <button class="btn btn-sm" onclick="mrClearFilters()">✕ Clear</button>
-  </div>
-  <div id="mr-kpis" class="kpi-grid" style="margin-bottom:12px"></div>
   <div class="card">
     <div class="card-head" style="background:#FEE2E2">
-      <span class="card-title" style="color:var(--red)" id="mr-card-title">Missed Readings Report</span>
-      <span id="mr-meta" style="font-size:11px;color:var(--muted)"></span>
+      <span class="card-title" style="color:var(--red)">⏱ Scheduled equipment pending — not read for 30+ days</span>
+      <button class="btn btn-sm" onclick="csExport()">📥 Excel</button>
     </div>
     <div class="card-body" style="padding:8px 12px">
-      <div id="mr-empty" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:13px">✅ No missed readings found for selected period.</div>
-      <div class="tbl-wrap" id="mr-wrap">
-        <table class="mobile-stack-table"><thead><tr>
-          <th>Equipment</th><th>Unit</th><th>Area</th>
-          <th>Days Since</th><th>Last Reading</th><th>Responsible Group</th><th>Sched. Date</th><th>Status</th><th>Action</th>
-        </tr></thead><tbody id="mr-body"></tbody></table>
+      <div class="filter-bar" style="margin-bottom:8px">
+        <select id="cs-f-group" onchange="csRenderOverdue()" style="flex:1;min-width:130px"><option value="">All Groups</option></select>
+        <select id="cs-f-unit" onchange="csRenderOverdue()" style="flex:1;min-width:90px"><option value="">All Units</option></select>
+        <select id="cs-f-area" onchange="csRenderOverdue()" style="flex:1;min-width:90px"><option value="">All Areas</option></select>
+        <select id="cs-f-bucket" onchange="csRenderOverdue()" style="flex:1;min-width:130px">
+          <option value="30+">30+ days (all)</option>
+          <option value="30">30–60 days</option>
+          <option value="60">60–90 days</option>
+          <option value="90">90+ days</option>
+          <option value="any">Any age (use date)</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);flex:1;min-width:190px">No reading since
+          <input type="date" id="cs-f-since" onchange="csOnSinceChange()" style="flex:1" title="Only equipment with no reading on or after this date"></label>
+        <input type="text" id="cs-f-search" placeholder="🔍 Search equipment..." oninput="csRenderOverdue()" style="flex:2;min-width:140px">
+        <button class="btn btn-sm" onclick="csClearFilters()">✕ Clear</button>
       </div>
+      <div id="cs-kpis" class="dsq-chips" style="margin-bottom:8px"></div>
+      <div id="cs-empty" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:13px">✅ No scheduled equipment matches these filters.</div>
+      <div class="tbl-wrap" id="cs-wrap">
+        <table class="ds-equip-tbl cs-tbl"><thead><tr>
+          <th>Equipment</th><th>Unit</th><th>Area</th><th>Last reading</th><th>Days since</th><th>Pending since</th><th>Missed by</th><th>Scheduled group(s)</th><th>Action</th>
+        </tr></thead><tbody id="cs-body"></tbody></table>
+      </div>
+      <div class="dsq-sub" style="margin-top:6px">Only equipment on this month's schedule is listed. "Pending since" is the oldest scheduled visit nobody completed since the last reading; "Missed by" counts each group's missed visits (last 4 months). A visit completed through a catch-up does not count as missed.</div>
     </div>
   </div>
 </div>
@@ -616,6 +617,7 @@ if ('serviceWorker' in navigator) {
       <button class="ap-nav-btn" data-ap="supabase"  onclick="apSelect('supabase')"><span class="ap-ic">⚡</span><span>Supabase</span></button>
       <button class="ap-nav-btn" data-ap="schedule"  onclick="apSelect('schedule')"><span class="ap-ic">📅</span><span>Schedule upload</span></button>
       <button class="ap-nav-btn" data-ap="retention" onclick="apSelect('retention')"><span class="ap-ic">🗑️</span><span>Data retention</span></button>
+      <button class="ap-nav-btn" data-ap="theme"     onclick="apSelect('theme')"><span class="ap-ic">🌓</span><span>Theme</span></button>
     </nav>
     <div class="ap-content">
 
@@ -749,6 +751,15 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       </div><!-- /pane retention -->
+      <div class="ap-pane" data-ap="theme">
+        <div class="ap-title">Theme</div>
+        <div class="ap-desc">Switch between dark and light mode on this device.</div>
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="ap-theme-toggle" onchange="toggleTheme();syncThemeToggleUI()" style="width:16px;height:16px">
+          Light theme
+        </label>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Unchecked = dark theme (default). Saved on this device only.</div>
+      </div><!-- /pane theme -->
     </div><!-- /ap-content -->
     </div><!-- /ap-layout -->
   </div>
@@ -780,8 +791,8 @@ if ('serviceWorker' in navigator) {
 <script src="js/data/severity.js?v=20260925"></script>
 <script src="js/data/html-utils.js?v=20260922"></script>
 <script src="js/data/recommendations.js?v=20260927c"></script>
-<script src="js/data/data-loader.js?v=20260929"></script>
-<script src="js/core/tabs-filters.js?v=20260926"></script>
+<script src="js/data/data-loader.js?v=20261018"></script>
+<script src="js/core/tabs-filters.js?v=20261018"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
 <script src="js/entry/entry-wizard.js?v=20260927c"></script>
 <script src="js/ai/ai-predict.js?v=20260926d"></script>
@@ -791,9 +802,9 @@ if ('serviceWorker' in navigator) {
 <script src="js/history/trend.js?v=20260922"></script>
 <script src="js/history/export-history.js?v=20261002"></script>
 <script src="js/reports/dashboard-pdf.js?v=20260922"></script>
-<script src="js/auth/auth.js?v=20260922"></script>
+<script src="js/auth/auth.js?v=20261015"></script>
 <script src="js/admin/data-retention.js?v=20260922"></script>
-<script src="js/admin/admin-panel.js?v=20260927"></script>
+<script src="js/admin/admin-panel.js?v=20261015"></script>
 <script src="js/history/edit-report.js?v=20260922"></script>
 <script src="js/history/session-actions.js?v=20260922"></script>
 <script src="js/bulk/template-builder.js?v=20260927c"></script>
@@ -803,24 +814,25 @@ if ('serviceWorker' in navigator) {
 <script src="js/exceptions/exceptions.js?v=20260922"></script>
 <script src="js/exceptions/pending-equipment.js?v=20260922"></script>
 <script src="js/schedule/schedule-data.js?v=20260928b"></script>
-<script src="js/schedule/daily-schedule.js?v=20260929b"></script>
+<script src="js/schedule/daily-schedule.js?v=20261023"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
 <script src="js/schedule/monthly-performance.js?v=20260922"></script>
-<script src="js/core/tab-refresh.js?v=20260922"></script>
+<script src="js/core/tab-refresh.js?v=20261018"></script>
 <script src="js/export/sql-export.js?v=20260929"></script>
 <script src="js/export/xlsm-template-data.js?v=20261009"></script>
 <script src="js/export/xlsm-export.js?v=20261009"></script>
-<script src="js/entry/entry-navigation.js?v=20260922"></script>
-<script src="js/schedule/missed-readings.js?v=20260922"></script>
+<script src="js/entry/entry-navigation.js?v=20261020"></script>
 <script src="js/schedule/schedule-engine.js?v=20260929"></script>
-<script src="js/schedule/dynamic-recovery.js?v=20260928b"></script>
+<script src="js/schedule/dynamic-recovery.js?v=20261024"></script>
 <script src="js/admin/schedule-manager.js?v=20260929"></script>
 <script src="js/admin/equipment-manager.js?v=20260928b"></script>
 <script src="js/admin/recommendations-manager.js?v=20260927c"></script>
 <script src="js/core/equip-autocomplete.js?v=20260922"></script>
-<script src="js/core/equip-search-setup.js?v=20260922"></script>
-<script src="js/schedule/schedule-search.js?v=20260928"></script>
-<script src="js/schedule/daily-panes.js?v=20260926"></script>
+<script src="js/core/equip-search-setup.js?v=20261018"></script>
+<script src="js/schedule/schedule-search.js?v=20261018"></script>
+<script src="js/schedule/catchup-summary.js?v=20261020"></script>
+<script src="js/schedule/catchup-analysis.js?v=20261024"></script>
+<script src="js/schedule/daily-panes.js?v=20261020"></script>
 <script src="js/app-init.js?v=20260922"></script>
 
 

@@ -25,7 +25,7 @@ function _updateEntryBackBtn() {
   const backDiv = document.getElementById('entry-back-source');
   if (backDiv) {
     if (_entrySourceTab) {
-      const tabNames = {daily:'Daily Schedule', missed:'Missed Readings', history:'History'};
+      const tabNames = {daily:'Daily Schedule', catchups:'Pending Equip', history:'History'};
       const btn = backDiv.querySelector('button');
       if (btn) btn.textContent = '← Back to ' + (tabNames[_entrySourceTab] || _entrySourceTab);
       backDiv.style.display = 'block';
@@ -41,7 +41,6 @@ function returnToSourceTab() {
     _entrySourceTab = null;
     showTab(src);
     try { refreshDailySchedule(); } catch(e){}
-    try { refreshMissedReading(); } catch(e){}
     if (_entrySourceFilters.scrollY) {
       setTimeout(()=>{ window.scrollTo(0, _entrySourceFilters.scrollY); _entrySourceFilters.scrollY=0; }, 200);
     }
@@ -63,7 +62,7 @@ function viewEquipHistory(equipName) {
 /* Feature 10 / 14: Refresh schedule pages */
 function refreshDailySchedule() { try { dsRender(); } catch(e) {} }
 function refreshPendingSchedule() { /* removed */ }
-function refreshMissedReading() { try { mrRender(); } catch(e) {} }
+function refreshCatchupSummary() { try { csRender(); } catch(e) {} }
 
 /* Feature 15: After saving, return to source tab.
    We patch goStep to detect the post-save return to step 1. */
@@ -78,7 +77,7 @@ function refreshMissedReading() { try { mrRender(); } catch(e) {} }
         showTab(src);
         try { refreshDailySchedule(); } catch(e){}
         try { refreshPendingSchedule(); } catch(e){}
-        try { refreshMissedReading(); } catch(e){}
+        try { refreshCatchupSummary(); } catch(e){}
         if (_entrySourceFilters.scrollY) {
           setTimeout(()=>{ window.scrollTo(0, _entrySourceFilters.scrollY); _entrySourceFilters.scrollY=0; }, 200);
         }

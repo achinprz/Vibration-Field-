@@ -10,7 +10,13 @@ function apSelect(key) {
   document.querySelectorAll('#admin-panel-modal .ap-nav-btn').forEach(b => b.classList.toggle('on', b.getAttribute('data-ap') === key));
   try { localStorage.setItem(AP_TAB_KEY, key); } catch(e) {}
   if (key === 'recs' && typeof rmOpen === 'function') rmOpen();
+  if (key === 'theme') syncThemeToggleUI();
   const c = document.querySelector('#admin-panel-modal .ap-content'); if (c) c.scrollTop = 0;
+}
+
+function syncThemeToggleUI() {
+  const cb = document.getElementById('ap-theme-toggle');
+  if (cb) cb.checked = document.documentElement.classList.contains('theme-light');
 }
 
 function openAdminPanel() {

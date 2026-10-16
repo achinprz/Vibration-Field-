@@ -115,7 +115,7 @@ function loadData() {
       if(id==='tab-history') renderHistory();
       if(id==='tab-entry') filterEntryList();
       if(id==='tab-daily') dsRender();
-            if(id==='tab-missed') { try{mrRender();}catch(e){} }
+            if(id==='tab-catchups') { try{csRender();}catch(e){} }
     }
   })
   .catch((err) => {
@@ -127,7 +127,7 @@ function loadData() {
       if(id==='tab-history') renderHistory();
       if(id==='tab-entry') filterEntryList();
       if(id==='tab-daily') dsRender();
-            if(id==='tab-missed') { try{mrRender();}catch(e){} }
+            if(id==='tab-catchups') { try{csRender();}catch(e){} }
     }
   });
 }

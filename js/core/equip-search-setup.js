@@ -73,31 +73,6 @@ function initEquipSearchDropdowns() {
     onPick: () => renderHistory(),
     onEnter: () => renderHistory()
   });
-
-  // ── Missed Readings: rows that pass group / unit / area / days filters ────
-  attachEquipAutocomplete('mr-f-search', {
-    source: () => {
-      const group = _acVal('mr-f-group'), unit = _acVal('mr-f-unit'), area = _acVal('mr-f-area');
-      const daysMin = parseInt(_acVal('mr-f-days') || '0', 10);
-      return _mrAllRows.filter(r =>
-        (!group || r.responsibleGroup.includes(group)) &&
-        (!unit || r.unit === unit) &&
-        (!area || r.area === area) &&
-        (!daysMin || (r.daysSince !== null && r.daysSince >= daysMin))
-      ).map(r => ({
-        name: r.name, unit: r.unit, area: r.area,
-        meta: r.daysSince === null || r.daysSince >= 9999 ? 'Never read' : r.daysSince + 'd since'
-      }));
-    },
-    // The Missed Readings filter also matches unit / area text, so the dropdown does too.
-    fields: it => [it.name, it.unit, it.area].join(' '),
-    context: () => _acCtx([
-      ['Group', _acVal('mr-f-group')], ['Unit', _acVal('mr-f-unit')], ['Area', _acVal('mr-f-area')],
-      ['Days', _acVal('mr-f-days') ? _acVal('mr-f-days') + '+' : '']
-    ]),
-    onPick: () => mrApplyFilters(),
-    onEnter: () => mrApplyFilters()
-  });
 }
 
 initEquipSearchDropdowns();
