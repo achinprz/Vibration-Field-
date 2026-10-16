@@ -52,6 +52,26 @@ function dyReadingOn(equip, ds) {
   const e = dyReadIndex()[normalizeEquipName(equip)];
   return (e && e[ds]) ? Object.assign({ date: ds }, e[ds]) : null;
 }
+// date -> Map(normalized equipment -> Set(groups)) of the REGULAR schedule. A catch-up is never put on a day the same equipment is already
+// on someone's regular list: one reading that day cannot be two readings, and it would only show up as a pending duplicate.
+const _dyNatEqMemo = {};
+function dyNativeTeamsOn(ds, equip) {
+  const y = parseInt(ds.slice(0, 4), 10), m = parseInt(ds.slice(5, 7), 10) - 1;
+  const S = dsScheduleFor(y, m), key = y + '-' + m;
+  if (!_dyNatEqMemo[key] || _dyNatEqMemo[key].S !== S || _dyNatEqMemo[key].v !== dsVersionFor(y, m)) {
+    const wds = dsWorkingDaysOfMonth(y, m), map = {};
+    Object.keys(S).forEach(team => wds.forEach((dt, i) => {
+      ((S[team] && S[team][String(i + 1)]) || []).forEach(it => {
+        if (!it || !it.n) return;
+        const d = (map[dsFmt(dt)] = map[dsFmt(dt)] || new Map()), k = normalizeEquipName(it.n);
+        (d.get(k) || d.set(k, new Set()).get(k)).add(team);
+      });
+    }));
+    _dyNatEqMemo[key] = { S, v: dsVersionFor(y, m), map };
+  }
+  const d = _dyNatEqMemo[key].map[ds];
+  return (d && d.get(normalizeEquipName(equip))) || new Set();
+}
 // 'YYYY-MM-DD|Team' -> Set(location) of everything on that group's regular schedule that day
 const _dyNatMemo = {};
 function dyNativeLocMap(y, m) {
@@ -130,15 +150,15 @@ function dyStatesFor(y, m) {
   _dyStMemo = { sig, t: Date.now(), val };
   return val;
 }
-// A catch-up that no longer has a job to do. Returns 'done' | false.
-//  done – the visit it was created for has been filled (by any group, even a day EARLY or late-but-before) before the catch-up day
-// (Being on a group's regular list that same day is NOT a reason to drop it — placing a catch-up where
-// a group is already working is exactly how the plan avoids extra movement.)
+// A catch-up that no longer has a job to do. Returns 'done' | 'same-day' | false.
+//  done     – the visit it was created for has been filled (by any group, even a day EARLY or late-but-before) before the catch-up day
+//  same-day – the same group has this equipment on its regular list on the catch-up day: one reading cannot be two
 function dyCatchupObsolete(c) {
   const ad = String(c.assigned_date).slice(0, 10), od = String(c.original_date).slice(0, 10);
   const mm = String(c.month || c.original_date).slice(0, 7);
   const st = (dyStatesFor(parseInt(mm.slice(0, 4), 10), parseInt(mm.slice(5, 7), 10) - 1)[c.original_team] || {})[c.original_day + '|' + c.equipment];
   if (st && st.date && String(st.date).slice(0, 10) < ad) return 'done';
+  if (dyNativeTeamsOn(ad, c.equipment).has(c.assigned_team)) return 'same-day';
   return false;
 }
 // Status of a catch-up row: the original visit's state if a reading fulfilled it, otherwise a reading taken on the catch-up day itself.
@@ -243,7 +263,7 @@ function dyPlan(y, m, misses, existingRows) {
     if (!had) extra[k]++;
     book(String(r.assigned_date).slice(0, 10), r.equipment, r.location, r.assigned_team);
   });
-  const freeFor = (dt, equip) => !(bookedOn[dsFmt(dt)] && bookedOn[dsFmt(dt)].has(normalizeEquipName(equip)));
+  const freeFor = (dt, equip) => !(bookedOn[dsFmt(dt)] && bookedOn[dsFmt(dt)].has(normalizeEquipName(equip))) && dyNativeTeamsOn(dsFmt(dt), equip).size === 0;
   // working days: a date carries at most DY_MAX_CU_LOCS different catch-up locations (all groups together).
   // reserve days: nobody has regular work, so the limit is per GROUP (each group's day stays within DY_MAX_CU_LOCS_RESERVE locations).
   const locOk = (ds, loc, team) => {

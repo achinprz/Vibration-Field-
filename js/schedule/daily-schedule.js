@@ -153,8 +153,9 @@ function dsOccurrenceStates(y, m, uptoStr){
     e.teams.add(t);
     if(!e.insp[t]) e.insp[t] = r.inspector || r.username || '';
   });
-  // 3. match readings to occurrences
-  const out = {};
+  // 3. match readings to occurrences.  A reading is one (date, group) pair: when two groups both read a machine on the same day
+  //    those are TWO readings, so they can fill two visits.
+  const out = {}, usedU = {};   // usedU: equipment -> Set('date|group') of readings already used by a visit
   Object.keys(occ).forEach(k=>{
     const list = occ[k];
     const days = Array.from(new Set(list.map(o=>o.day))).sort((a,b)=>a-b);
@@ -176,25 +177,25 @@ function dsOccurrenceStates(y, m, uptoStr){
       if(!b) return;
       const by = own ? (b.e.teams.has(o.team) ? o.team : '') : (Array.from(b.e.teams).find(t=>t && t !== o.team) || '');
       (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: b.ds, by, insp: b.e.insp[by] || '', delta: b.d - o.day };
+      (usedU[k] = usedU[k] || new Set()).add(b.ds + '|' + by);
     });
   });
-  // 4. second pass — a visit still unmatched (typically the first visit of a fortnightly machine that was missed) takes a LATER
-  //    reading that no other visit used: two readings in a month fill two visits, wherever in the month they fall. A reading can
-  //    still never fill two visits.
+  // 4. second pass — a visit still unmatched (typically the first visit of a fortnightly / weekly machine that was missed) takes a
+  //    LATER reading that no other visit used — preferably one taken by its own group, otherwise the nearest. Two readings in a
+  //    month (or on one day, by two groups) fill two visits; a reading can still never fill two visits.
   Object.keys(occ).forEach(k=>{
     if(!reads[k]) return;
-    const list = occ[k], used = new Set();
-    list.forEach(o=>{ const s = (out[o.team]||{})[o.key]; if(s) used.add(s.date); });
-    const free = Object.keys(reads[k]).sort().filter(ds=>!used.has(ds));
+    const list = occ[k], used = usedU[k] || new Set();
+    const free = [];
+    Object.keys(reads[k]).sort().forEach(ds=>{ reads[k][ds].teams.forEach(t=>{ if(!used.has(ds + '|' + t)) free.push({ ds, t, d: parseInt(ds.slice(8,10),10) }); }); });
     if(!free.length) return;
     list.filter(o=>!(out[o.team]||{})[o.key]).sort((a,b)=>a.day-b.day).forEach(o=>{
-      let bi = -1, bd = 1e9;
-      free.forEach((ds,i)=>{ const d = parseInt(ds.slice(8,10),10); if(d <= o.day) return; if(d - o.day < bd){ bd = d - o.day; bi = i; } });
+      let bi = -1, bs = 1e9;
+      free.forEach((f,i)=>{ if(f.d <= o.day) return; const sc = (f.t === o.team || f.t === '' ? 0 : 1000) + (f.d - o.day); if(sc < bs){ bs = sc; bi = i; } });
       if(bi < 0) return;
-      const ds = free.splice(bi,1)[0], e = reads[k][ds], d = parseInt(ds.slice(8,10),10);
-      const own = e.teams.has(o.team) || e.teams.has('');
-      const by = own ? (e.teams.has(o.team) ? o.team : '') : (Array.from(e.teams).find(t=>t && t !== o.team) || '');
-      (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: ds, by, insp: e.insp[by] || '', delta: d - o.day };
+      const f = free.splice(bi,1)[0], e = reads[k][f.ds];
+      const own = f.t === o.team || f.t === '';
+      (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: f.ds, by: f.t, insp: e.insp[f.t] || '', delta: f.d - o.day };
     });
   });
   try { if (typeof dyAugmentStates === 'function') dyAugmentStates(out, y, m, uptoStr || dsFmt(new Date())); } catch(e){ console.warn('dyAugmentStates failed:', e); }
@@ -442,8 +443,8 @@ function dsSelectDay(d, keep){
     else if (future) { rowBg = 'background:#EFF6FF'; stateTip = 'Upcoming'; }
     else if (dt.getTime()===today.getTime()) { rowBg = 'background:#FFEDD5'; stateTip = 'Pending today'; }
     else { rowBg = 'background:#FEE2E2'; stateTip = 'Missed'; }
-    // last reading of this machine before this visit's reading (or, if not read yet, the latest one so far)
-    const refDate = s ? s.date : (future ? dsFmt(new Date(today.getTime() + 864e5)) : dsFmt(dt));
+    // last reading of this machine = the most recent one taken BEFORE the scheduled day (for an upcoming day: the latest one so far)
+    const refDate = future ? dsFmt(new Date(today.getTime() + 864e5)) : dsFmt(dt);
     const lastR = dsLastReadingBefore(it.n, refDate);
     const lastHtml = lastR ? `<span class="dslast">${dsShortDate(lastR.date)}</span><div class="dsmeta">${escHtml(lastR.by)}</div>` : '<span style="color:#6b7280">—</span>';
     const eqObj = MASTER.find(m=>m.name===it.n) || MASTER.find(m=>normalizeEquipName(m.name)===normalizeEquipName(it.n));
@@ -543,7 +544,7 @@ function dsLastIndex() {
     const arr = (map[k] = map[k] || []);
     const last = arr[arr.length - 1];
     if (last && last.date === ds && last.by === by) return;   // same group, same day (several points of one session)
-    arr.push({ date: ds, by });
+    arr.push({ date: ds, by, ts: String(r.createdOn || '') });
   });
   Object.keys(map).forEach(k => map[k].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   _dsLastIdx = { sig, map };
@@ -551,12 +552,14 @@ function dsLastIndex() {
 }
 // The latest reading of a machine taken STRICTLY BEFORE beforeStr (YYYY-MM-DD): {date, by} or null.
 // (A reading taken on that very day is skipped, so for a visit that was just read it shows the reading before it.)
-function dsLastReadingBefore(equip, beforeStr) {
+// cut = the reading that completed this visit ({by, ts}): another group's reading taken EARLIER THE SAME DAY counts as the previous one.
+function dsLastReadingBefore(equip, beforeStr, cut) {
   const arr = dsLastIndex()[normalizeEquipName(equip)];
   if (!arr) return null;
-  for (let i = arr.length - 1; i >= 0; i--) if (arr[i].date < beforeStr) {
+  const ok = x => x.date < beforeStr || (cut && x.date === beforeStr && x.by !== cut.by && x.ts && cut.ts && x.ts < cut.ts);
+  for (let i = arr.length - 1; i >= 0; i--) if (ok(arr[i])) {
     // if several groups read on that same date, list them all
-    const same = arr.filter(x => x.date === arr[i].date).map(x => x.by).filter((v, j, a) => v && a.indexOf(v) === j);
+    const same = arr.filter(x => x.date === arr[i].date && ok(x)).map(x => x.by).filter((v, j, a) => v && a.indexOf(v) === j);
     return { date: arr[i].date, by: same.join(' + ') };
   }
   return null;
