@@ -443,9 +443,12 @@ function dsSelectDay(d, keep){
     else if (future) { rowBg = 'background:#EFF6FF'; stateTip = 'Upcoming'; }
     else if (dt.getTime()===today.getTime()) { rowBg = 'background:#FFEDD5'; stateTip = 'Pending today'; }
     else { rowBg = 'background:#FEE2E2'; stateTip = 'Missed'; }
-    // last reading of this machine = the most recent one taken BEFORE the scheduled day (for an upcoming day: the latest one so far)
-    const refDate = future ? dsFmt(new Date(today.getTime() + 864e5)) : dsFmt(dt);
-    const lastR = dsLastReadingBefore(it.n, refDate);
+    // last reading of this machine = the one BEFORE the reading that completed this visit (an early/late reading must not list itself);
+    // not read yet: the latest one before the scheduled day; an upcoming day: the latest one so far, today's included
+    const refDate = s ? s.date : (future ? dsFmt(new Date(today.getTime() + 864e5)) : dsFmt(dt));
+    let cut = null;
+    if (s && s.date) { const lbl = s.by ? (TEAM_NAME[s.by] || s.by) : ''; const ent = (dsLastIndex()[normalizeEquipName(it.n)] || []).find(x => x.date === s.date && (!lbl || x.by === lbl)); if (ent) cut = { by: ent.by, ts: ent.ts }; }
+    const lastR = dsLastReadingBefore(it.n, refDate, cut);
     const lastHtml = lastR ? `<span class="dslast">${dsShortDate(lastR.date)}</span><div class="dsmeta">${escHtml(lastR.by)}</div>` : '<span style="color:#6b7280">—</span>';
     const eqObj = MASTER.find(m=>m.name===it.n) || MASTER.find(m=>normalizeEquipName(m.name)===normalizeEquipName(it.n));
     const dispUnit = it.u || (eqObj && eqObj.unit) || '';

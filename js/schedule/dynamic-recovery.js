@@ -164,7 +164,12 @@ function dyCatchupObsolete(c) {
 // Status of a catch-up row: the original visit's state if a reading fulfilled it, otherwise a reading taken on the catch-up day itself.
 function dyCatchupState(c, allStates) {
   const os = ((allStates || {})[c.original_team] || {})[c.original_day + '|' + c.equipment];
-  if (os) return os;
+  if (os) {
+    // colour is judged from the point of view of the group the catch-up was ASSIGNED to: doing it themselves = own (green),
+    // whoever else did it = other (yellow). (The original visit's state is relative to the group that missed it.)
+    const own = !os.by || os.by === c.assigned_team;
+    return own === (os.state === 'own') ? os : Object.assign({}, os, { state: own ? 'own' : 'other' });
+  }
   const ro = dyReadingOn(c.equipment, String(c.assigned_date).slice(0, 10));
   if (!ro) return null;
   const own = ro.teams.has(c.assigned_team) || ro.teams.has('');
