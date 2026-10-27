@@ -23,13 +23,13 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
 
 <script src="js/boot/datetime.js?v=20260922"></script>
 <script src="js/boot/theme.js?v=20260922"></script>
@@ -40,6 +40,11 @@ if ('serviceWorker' in navigator) {
 <link rel="stylesheet" href="css/auth-admin.css?v=20260925b">
 <link rel="stylesheet" href="css/responsive.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-offline.css?v=20261018">
+<link rel="stylesheet" href="css/entry-guardrails.css?v=20261026">
+<link rel="stylesheet" href="css/equipment-health.css?v=20261027">
+<link rel="stylesheet" href="css/not-running.css?v=20261028">
+<link rel="stylesheet" href="css/admin-2fa.css?v=20261103">
+<link rel="stylesheet" href="css/password-management.css?v=20261101">
 <link rel="stylesheet" href="css/theme.css?v=20260922">
 <link rel="stylesheet" href="css/daily-schedule.css?v=20261020">
 <link rel="stylesheet" href="css/autocomplete.css?v=20260922">
@@ -212,6 +217,7 @@ if ('serviceWorker' in navigator) {
               onchange="onDecoupledToggle(this.checked)">
             <label for="decoupled-trial-chk" style="font-size:12px;font-weight:600;color:#92400E;cursor:pointer;white-space:nowrap;margin:0">Decoupled Trial</label>
           </div>
+          <button class="btn btn-sm btn-nr requires-editor" id="nr-open-btn" data-fx="live" style="display:none" onclick="nrOpenDialog()" title="The machine is stopped / on standby: complete this visit without a vibration reading">🚫 Not running / Standby</button>
           <div id="s2-sched-badge"></div>
         </div>
       </div>
@@ -327,6 +333,7 @@ if ('serviceWorker' in navigator) {
       <option value="asc">🔼 Oldest First</option>
     </select>
     <button class="btn btn-primary" onclick="renderHistory()">🔍 Filter</button>
+    <button class="btn btn-ehi" data-fx="ehi" style="display:none" onclick="ehiOpenWorst()" title="Machines ranked by Equipment Health Index, worst first">🩺 Worst Health</button>
     <button class="btn" style="background:var(--green-light);color:var(--green-text);border-color:var(--green-text)" onclick="tabRefresh('history')" title="Fetch latest data from Supabase">🔄 Refresh</button>
     <button class="btn" onclick="exportHistoryExcel()">📥 Excel</button>
     <button class="btn" onclick="exportHistoryPDF()">📄 PDF Report</button>
@@ -612,6 +619,7 @@ if ('serviceWorker' in navigator) {
     <nav class="ap-nav" id="ap-nav">
       <button class="ap-nav-btn" data-ap="tools"     onclick="apSelect('tools')"><span class="ap-ic">🧰</span><span>Managers</span></button>
       <button class="ap-nav-btn" data-ap="users"     onclick="apSelect('users')"><span class="ap-ic">👥</span><span>Users</span></button>
+      <button class="ap-nav-btn" data-ap="passwords" onclick="apSelect('passwords')"><span class="ap-ic">🔑</span><span>Password management</span></button>
       <button class="ap-nav-btn" data-ap="recs"      onclick="apSelect('recs')"><span class="ap-ic">📋</span><span>Recommendations</span></button>
       <button class="ap-nav-btn" data-ap="ai"        onclick="apSelect('ai')"><span class="ap-ic">🤖</span><span>AI service</span></button>
       <button class="ap-nav-btn" data-ap="supabase"  onclick="apSelect('supabase')"><span class="ap-ic">⚡</span><span>Supabase</span></button>
@@ -722,6 +730,7 @@ if ('serviceWorker' in navigator) {
         </table>
       </div>
       </div><!-- /pane users -->
+      <div class="ap-pane" data-ap="passwords"><div class="ap-title">Password management</div><div id="pwm-body"></div></div>
       <!-- Schedule Excel Upload Section -->
       <div class="ap-pane" data-ap="schedule">
       <div>
@@ -785,45 +794,52 @@ if ('serviceWorker' in navigator) {
 
 
 <script src="js/core/mobile-download.js?v=20260922"></script>
-<script src="js/core/config.js?v=20260922"></script>
+<script src="js/core/config.js?v=20261102"></script>
+<script src="js/core/feature-gate.js?v=20261031"></script>
 <script src="js/core/ui-helpers.js?v=20260922"></script>
 <script src="js/data/equipment-master.js?v=20260922"></script>
 <script src="js/data/severity.js?v=20260925"></script>
 <script src="js/data/html-utils.js?v=20260922"></script>
 <script src="js/data/recommendations.js?v=20260927c"></script>
-<script src="js/data/data-loader.js?v=20261018"></script>
+<script src="js/data/data-loader.js?v=20261028"></script>
+<script src="js/data/status-log.js?v=20261028"></script>
 <script src="js/core/tabs-filters.js?v=20261018"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
-<script src="js/entry/entry-wizard.js?v=20260927c"></script>
+<script src="js/entry/entry-wizard.js?v=20261030"></script>
 <script src="js/ai/ai-predict.js?v=20260926d"></script>
-<script src="js/offline/offline-queue.js?v=20260924"></script>
-<script src="js/entry/save-session.js?v=20261005"></script>
-<script src="js/history/history.js?v=20260922"></script>
-<script src="js/history/trend.js?v=20260922"></script>
+<script src="js/offline/offline-queue.js?v=20261028"></script>
+<script src="js/entry/entry-guardrails.js?v=20261026"></script>
+<script src="js/entry/not-running.js?v=20261031"></script>
+<script src="js/entry/save-session.js?v=20261026"></script>
+<script src="js/history/history.js?v=20261030"></script>
+<script src="js/data/equipment-health.js?v=20261031"></script>
+<script src="js/history/trend.js?v=20261031"></script>
 <script src="js/history/export-history.js?v=20261002"></script>
 <script src="js/reports/dashboard-pdf.js?v=20260922"></script>
-<script src="js/auth/auth.js?v=20261015"></script>
+<script src="js/auth/admin-2fa.js?v=20261102"></script>
+<script src="js/auth/auth.js?v=20261102"></script>
 <script src="js/admin/data-retention.js?v=20260922"></script>
-<script src="js/admin/admin-panel.js?v=20261015"></script>
-<script src="js/history/edit-report.js?v=20260922"></script>
+<script src="js/admin/admin-panel.js?v=20261101"></script>
+<script src="js/history/edit-report.js?v=20261030"></script>
 <script src="js/history/session-actions.js?v=20260922"></script>
 <script src="js/bulk/template-builder.js?v=20260927c"></script>
 <script src="js/bulk/bulk-upload.js?v=20260922"></script>
 <script src="js/reports/user-report.js?v=20260922"></script>
 <script src="js/share/whatsapp.js?v=20260922"></script>
-<script src="js/exceptions/exceptions.js?v=20260922"></script>
+<script src="js/exceptions/exceptions.js?v=20261030"></script>
 <script src="js/exceptions/pending-equipment.js?v=20260922"></script>
 <script src="js/schedule/schedule-data.js?v=20260928b"></script>
-<script src="js/schedule/daily-schedule.js?v=20261027"></script>
+<script src="js/schedule/daily-schedule.js?v=20261031"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
 <script src="js/schedule/monthly-performance.js?v=20260922"></script>
 <script src="js/core/tab-refresh.js?v=20261018"></script>
 <script src="js/export/sql-export.js?v=20260929"></script>
-<script src="js/export/xlsm-template-data.js?v=20261009"></script>
-<script src="js/export/xlsm-export.js?v=20261009"></script>
+<script src="js/export/xlsm-template-data.js?v=20261101"></script>
+<script src="js/export/xlsm-lock.js?v=20261101"></script>
+<script src="js/export/xlsm-export.js?v=20261101"></script>
 <script src="js/entry/entry-navigation.js?v=20261020"></script>
 <script src="js/schedule/schedule-engine.js?v=20260929"></script>
-<script src="js/schedule/dynamic-recovery.js?v=20261027"></script>
+<script src="js/schedule/dynamic-recovery.js?v=20261031"></script>
 <script src="js/admin/schedule-manager.js?v=20260929"></script>
 <script src="js/admin/equipment-manager.js?v=20260928b"></script>
 <script src="js/admin/recommendations-manager.js?v=20260927c"></script>
@@ -831,9 +847,9 @@ if ('serviceWorker' in navigator) {
 <script src="js/core/equip-search-setup.js?v=20261018"></script>
 <script src="js/schedule/schedule-search.js?v=20261018"></script>
 <script src="js/schedule/catchup-summary.js?v=20261020"></script>
-<script src="js/schedule/catchup-analysis.js?v=20261024"></script>
+<script src="js/schedule/catchup-analysis.js?v=20261028"></script>
 <script src="js/schedule/daily-panes.js?v=20261020"></script>
-<script src="js/app-init.js?v=20260922"></script>
+<script src="js/app-init.js?v=20261102"></script>
 
 
 </body>

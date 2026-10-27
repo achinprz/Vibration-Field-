@@ -5,7 +5,9 @@
    same location later this month (piggy-back); failing that, a nearby day that hasn't already
    absorbed more than +2 extra locations (add-on); failing that, one of the reserve days at the
    end of the month (working days 24-26, or fewer in a short month like February). Equipment with
-   a recent Alarm/Alert/Critical reading is placed first, so it gets the earliest slot.
+   the LOWEST Equipment Health Index (equipment-health.js) is placed first, so it gets the earliest slot — but the day / location
+   limits are never exceeded for anyone.
+   "Not running / Standby" marks (status-log.js) complete a visit, and the engine then plans up to DY_NR_MAX re-checks for it.
    Runs automatically (once/day per admin browser) and can be re-run on demand. Every placement is
    written to catchup_assignments (see supabase/dynamic_schedule.sql) and can be undone — the
    original static schedule (vibe_schedule) is never touched. */
@@ -19,6 +21,12 @@ const DY_MIN_GAP_DAYS = 7;       // keep a catch-up this many calendar days away
 const DY_ADDON_MIN_CLUSTER = 3;  // a NEW location on a working day is only opened for a location with at least this many waiting machines (or an Alarm+ machine)
 const DY_MAX_CU_LOCS = 5;   // working days: at most this many DIFFERENT locations carrying catch-ups on one date (all groups together)
 const DY_MAX_CU_LOCS_RESERVE = 5;   // reserve days (no regular work): at most this many different locations PER GROUP on one reserve day   // at most this many DIFFERENT locations carrying catch-ups on one date (all groups together)
+
+const DY_NR_MAX = 2;          // re-checks per Not-running / Standby visit (a machine visited twice a month: up to 4 in all)
+const DY_NR_GAP_DAYS = 5;     // a re-check is planned at least this many days after the last Not-running mark
+
+// the new catch-up rules (health-based priority, no limit exceptions, Not-running re-checks) only apply to months starting on/after FEATURES_FROM
+const dyV2 = (y, m) => (typeof fxRulesFor === 'function') ? fxRulesFor(y, m) : false;
 
 let _dyGeo = null;
 function dyGeo() { return (_dyGeo = _dyGeo || (window.VibeEngine ? window.VibeEngine.buildGeo() : null)); }
@@ -52,6 +60,58 @@ function dyReadingOn(equip, ds) {
   const e = dyReadIndex()[normalizeEquipName(equip)];
   return (e && e[ds]) ? Object.assign({ date: ds }, e[ds]) : null;
 }
+// ── Not running / Standby support ──
+// The first REAL vibration reading of this equipment dated after baseDs (a Not-running mark is not a reading), or null.
+function dyRealAfter(equip, baseDs) {
+  const e = dyReadIndex()[normalizeEquipName(equip)];
+  if (!e) return null;
+  const ds = Object.keys(e).filter(d => d > baseDs).sort()[0];
+  return ds ? Object.assign({ date: ds }, e[ds]) : null;
+}
+// dates of Not-running marks after the visit's own mark = re-check attempts already used
+function dyNrDates(equip, baseDs) {
+  return Array.from(new Set((typeof nrMarks === 'function' ? nrMarks(equip) : []).filter(x => x.date > baseDs).map(x => x.date))).sort();
+}
+// Does this Not-running visit still need a re-check? -> { attempts, earliest:Date } or null (read since / limit reached)
+function dyRecheckNeed(equip, st) {
+  if (dyRealAfter(equip, st.date)) return null;
+  const dates = dyNrDates(equip, st.date);
+  if (dates.length >= DY_NR_MAX) return null;
+  const e = new Date((dates.length ? dates[dates.length - 1] : st.date) + 'T00:00:00');
+  e.setDate(e.getDate() + DY_NR_GAP_DAYS);
+  return { attempts: dates.length, earliest: e };
+}
+// Health-based urgency: tier 0 Critical (<40), 1 Poor (<60), 2 Watch (<80) or no score, 3 Healthy. Low health goes first.
+function dyUrgency(equip) {
+  const i = (typeof ehiFor === 'function') ? ehiFor(equip) : null;
+  const scored = !!(i && i.score != null);
+  const ehi = scored ? i.score : ((typeof EHI !== 'undefined') ? EHI.NEUTRAL : 50);
+  return { ehi, scored, tier: scored ? (ehi < 40 ? 0 : ehi < 60 ? 1 : ehi < 80 ? 2 : 3) : 2 };
+}
+// is this catch-up row a re-check of a Not-running visit?
+function dyIsRecheckRow(r, allStates) {
+  const os = ((allStates || {})[r.original_team] || {})[r.original_day + '|' + r.equipment];
+  return !!(os && os.nr);
+}
+// tag under the equipment name: what the Not-running mark led to
+function dyNrBadge(it, s, y, m) {
+  let base = s.date;
+  if (it._cu) { const vs = ((dyStatesFor(y, m)[it._team] || {})[it._wd + '|' + it.n]); if (vs && vs.nr) base = vs.date; }
+  const label = (typeof nrLabel === 'function' ? nrLabel(s.nrStatus) : 'Not running');
+  const real = dyRealAfter(it.n, base), dates = dyNrDates(it.n, base);
+  let tail, tip;
+  if (real) { tail = ' · read again ' + dsShortDate(real.date); tip = 'A real vibration reading was taken after the standby mark.'; }
+  else if (dates.length >= DY_NR_MAX) { tail = ' · re-check limit reached'; tip = 'Still not running after ' + DY_NR_MAX + ' re-checks — no more catch-ups are planned for this visit.'; }
+  else {
+    const k = normalizeEquipName(it.n);
+    const rows = (DY_CACHE[dyCacheKey(y, m)] || {}).rows || [];
+    const plan = rows.find(r => r.status === 'active' && r.original_team === it._team && String(r.original_day) === String(it._wd) && normalizeEquipName(r.equipment) === k && !dyCatchupObsolete(r));
+    tail = plan ? ' · re-check ' + dsShortDate(String(plan.assigned_date).slice(0, 10)) : ' · re-check not planned yet';
+    tip = 'The visit counts as complete. Re-checks used: ' + dates.length + ' of ' + DY_NR_MAX + '.';
+  }
+  return '<div><span class="cu-badge nr-badge" title="' + escHtml(tip) + '">🚫 ' + escHtml(label) + escHtml(tail) + '</span></div>';
+}
+
 // date -> Map(normalized equipment -> Set(groups)) of the REGULAR schedule. A catch-up is never put on a day the same equipment is already
 // on someone's regular list: one reading that day cannot be two readings, and it would only show up as a pending duplicate.
 const _dyNatEqMemo = {};
@@ -112,6 +172,7 @@ function dyOutcome(r, todayStr) {
   const created = r.created_at ? dsFmt(new Date(r.created_at)) : od;
   const mm = String(r.month || od).slice(0, 7);
   const st = (dyStatesFor(parseInt(mm.slice(0, 4), 10), parseInt(mm.slice(5, 7), 10) - 1)[r.original_team] || {})[r.original_day + '|' + r.equipment];
+  if (st && st.nr) return dyNrOutcome(r, st, od, ad, todayStr);
   if (!st || !st.date) return { k: ad < todayStr ? 'failed' : 'pending' };
   const sd = _d10(st.date);
   if (sd <= od || sd < created) return { k: 'notneeded' };
@@ -119,6 +180,19 @@ function dyOutcome(r, todayStr) {
   const readers = Array.from(ro.teams);
   return { k: 'credited', when: sd < ad ? 'before' : (sd === ad ? 'day' : 'after'), date: sd, by: st.by || '', own: st.state === 'own', readers,
     insp: st.insp || ro.insp[Object.keys(ro.insp)[0]] || '', delta: _dayDiff(od, sd) };
+}
+// Outcome of a catch-up row whose visit was completed by a Not-running mark: it is a RE-CHECK, judged by what happens after that mark.
+function dyNrOutcome(r, st, od, ad, todayStr) {
+  const real = dyRealAfter(r.equipment, st.date);
+  if (real) {
+    const readers = Array.from(real.teams), by = readers.find(t => t) || '';
+    return { k: 'credited', when: real.date < ad ? 'before' : (real.date === ad ? 'day' : 'after'), date: real.date, by, own: real.teams.has(r.assigned_team) || real.teams.has(''), readers,
+      insp: real.insp[by] || real.insp[Object.keys(real.insp)[0]] || '', delta: _dayDiff(od, real.date) };
+  }
+  const dates = dyNrDates(r.equipment, st.date);
+  if (dates.length >= DY_NR_MAX) return { k: 'notneeded', why: 'standby-limit' };
+  if (dates.some(d => d >= ad) || ad < todayStr) return { k: 'failed', nr: true };   // attempted and still standby, or the day passed unvisited -> next re-check
+  return { k: 'pending' };
 }
 // Signature of the loaded catch-up rows for a month — dsOccurrenceStates' cache must notice when they change.
 function dyCuSig(y, m) {
@@ -143,20 +217,28 @@ function dyAugmentStates(out, y, m, uptoStr) {
 let _dyStMemo = null;
 function dyStatesFor(y, m) {
   const rd = (typeof dsReadingsArr === 'function' ? dsReadingsArr() : []) || [];
-  const sig = [y, m, rd.length, dsVersionFor(y, m), dyCuSig(y, m)].join('|');
-  if (_dyStMemo && _dyStMemo.sig === sig && Date.now() - _dyStMemo.t < 2000) return _dyStMemo.val;
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const sig = [y, m, rd.length, dsVersionFor(y, m), dyCuSig(y, m), (typeof STATUS_LOG !== 'undefined' ? STATUS_LOG.length : 0), dsFmt(t0)].join('|');
+  if (_dyStMemo && _dyStMemo.sig === sig && Date.now() - _dyStMemo.t < 2000) return _dyStMemo.val;
   const val = dsOccurrenceStates(y, m, dsFmt(t0));
   _dyStMemo = { sig, t: Date.now(), val };
   return val;
 }
-// A catch-up that no longer has a job to do. Returns 'done' | 'same-day' | false.
+// A catch-up that no longer has a job to do. Returns 'done' | 'same-day' | 'standby-limit' | false.
 //  done     – the visit it was created for has been filled (by any group, even a day EARLY or late-but-before) before the catch-up day
 //  same-day – the same group has this equipment on its regular list on the catch-up day: one reading cannot be two
 function dyCatchupObsolete(c) {
   const ad = String(c.assigned_date).slice(0, 10), od = String(c.original_date).slice(0, 10);
   const mm = String(c.month || c.original_date).slice(0, 7);
   const st = (dyStatesFor(parseInt(mm.slice(0, 4), 10), parseInt(mm.slice(5, 7), 10) - 1)[c.original_team] || {})[c.original_day + '|' + c.equipment];
+  if (st && st.nr) {   // a re-check of a Not-running visit: only a REAL reading before its day, or the re-check limit, makes it pointless
+    const real = dyRealAfter(c.equipment, st.date);
+    if (real && real.date < ad) return 'done';
+    const dates = dyNrDates(c.equipment, st.date);
+    if (dates.length >= DY_NR_MAX && !dates.some(d => d >= ad)) return 'standby-limit';
+    if (dyNativeTeamsOn(ad, c.equipment).has(c.assigned_team)) return 'same-day';
+    return false;
+  }
   if (st && st.date && String(st.date).slice(0, 10) < ad) return 'done';
   if (dyNativeTeamsOn(ad, c.equipment).has(c.assigned_team)) return 'same-day';
   return false;
@@ -164,6 +246,19 @@ function dyCatchupObsolete(c) {
 // Status of a catch-up row: the original visit's state if a reading fulfilled it, otherwise a reading taken on the catch-up day itself.
 function dyCatchupState(c, allStates) {
   const os = ((allStates || {})[c.original_team] || {})[c.original_day + '|' + c.equipment];
+  if (os && os.nr) {
+    // the visit itself was completed by a Not-running mark, so this row is a RE-CHECK: judge it by what happened after that mark
+    const ad = String(c.assigned_date).slice(0, 10);
+    const real = dyRealAfter(c.equipment, os.date);
+    if (real) {
+      const own = real.teams.has(c.assigned_team) || real.teams.has('');
+      const by = own ? (real.teams.has(c.assigned_team) ? c.assigned_team : '') : (Array.from(real.teams).find(t => t) || '');
+      return { state: own ? 'own' : 'other', date: real.date, by, insp: real.insp[by] || real.insp[Object.keys(real.insp)[0]] || '', delta: _dayDiff(ad, real.date) };
+    }
+    const mk = (typeof nrMarks === 'function' ? nrMarks(c.equipment) : []).find(x => x.date >= ad && x.date >= os.date);   // still not running on the re-check day
+    if (mk) { const own = !mk.team || mk.team === c.assigned_team; return { state: own ? 'own' : 'other', date: mk.date, by: mk.team, insp: mk.insp, delta: _dayDiff(ad, mk.date), nr: true, nrStatus: mk.status }; }
+    return null;
+  }
   if (os) {
     // colour is judged from the point of view of the group the catch-up was ASSIGNED to: doing it themselves = own (green),
     // whoever else did it = other (yellow). (The original visit's state is relative to the group that missed it.)
@@ -190,6 +285,7 @@ function dyReserveDays(y, m) { return dyAllWorkingDays(y, m).slice(23); }   // [
 // A "miss" = a scheduled visit whose date has already passed with no matching reading (own or other) —
 // exactly what the Daily Schedule calendar already shows as red/"Missed".
 function dyBuildMisses(y, m, today) {
+  const v2 = dyV2(y, m);
   const S = dsScheduleFor(y, m);
   const wds = dsWorkingDaysOfMonth(y, m);
   const allStates = dsOccurrenceStates(y, m, dsFmt(today));
@@ -197,23 +293,30 @@ function dyBuildMisses(y, m, today) {
   const misses = [];
   Object.keys(S).forEach(team => {
     wds.forEach((dt, i) => {
-      if (dt >= today) return;                         // only days that have actually passed
+      const past = dt < today;                         // ordinary misses: only days that have actually passed
       const wd = i + 1;
       const items = (S[team] && S[team][String(wd)]) || [];
       items.forEach(it => {
         if (!it || !it.n) return;
         const st = (allStates[team] || {})[wd + '|' + it.n];
-        if (st) return;                                  // already fulfilled — not a miss
         const sev = (lastRead[it.n] && lastRead[it.n].severity) || 'NORMAL';
-        misses.push({
+        const base = Object.assign({
           equipment: it.n, location: it.l || (typeof dsScheduleInfo === 'function' ? dsScheduleInfo(it.n).l : '') || '', team, wd, date: dsFmt(dt),
-          sevRank: DY_SEV_RANK[sev] != null ? DY_SEV_RANK[sev] : 0,
-          overdueDays: Math.round((today - dt) / 86400000)
-        });
+          sevRank: DY_SEV_RANK[sev] != null ? DY_SEV_RANK[sev] : 0
+        }, dyUrgency(it.n));
+        if (st && st.nr) {                             // completed by a Not-running mark: needs a REAL reading later (at most DY_NR_MAX re-checks)
+          if (!v2) return;
+          const need = dyRecheckNeed(it.n, st);
+          if (need) misses.push(Object.assign(base, { recheck: true, earliest: need.earliest, attempts: need.attempts, overdueDays: 0 }));
+          return;
+        }
+        if (!past || st) return;                       // not due yet, or already fulfilled — not a miss
+        misses.push(Object.assign(base, { overdueDays: Math.round((today - dt) / 86400000) }));
       });
     });
   });
-  misses.sort((a, b) => b.sevRank - a.sevRank || b.overdueDays - a.overdueDays);   // Alarm/Alert/Critical first, then longest-waiting
+  if (v2) misses.sort((a, b) => a.tier - b.tier || b.overdueDays - a.overdueDays);   // lowest equipment health first, then longest-waiting
+  else misses.sort((a, b) => b.sevRank - a.sevRank || b.overdueDays - a.overdueDays);   // (old rule) Alarm/Alert/Critical first, then longest-waiting
   return misses;
 }
 // Next regular visit of this equipment after working day `wd` — by ANY group (team arg kept for callers, unused).
@@ -228,6 +331,7 @@ function dyNextOccurrenceDate(S, team, equipment, wd, y, m) {
 
 /* ───────── place the misses (piggy-back → add-on → reserve) ───────── */
 function dyPlan(y, m, misses, existingRows) {
+  const v2 = dyV2(y, m);
   const geo = dyGeo(); if (!geo) return [];
   const S = dsScheduleFor(y, m);
   const wds = dyAllWorkingDays(y, m);
@@ -278,13 +382,16 @@ function dyPlan(y, m, misses, existingRows) {
   const todayDt = new Date(); todayDt.setHours(0, 0, 0, 0);
 
   // Location slots (at most DY_MAX_CU_LOCS different locations per date) are what runs out first, so the order matters:
-  // Alarm / Alert / Critical machines first (criticality outranks everything), then the locations with the MOST waiting
+  // the machines with the LOWEST Equipment Health Index first (tier: Critical < Poor < Watch < Healthy), then the locations with the MOST waiting
   // equipment — one slot spent on a location with 12 machines covers 12 visits, on one with a single machine just 1.
   // Machines of one location are placed one after another, so they ride along together on the same day.
   const waiting = {};
   misses.forEach(x => { waiting[x.location || ''] = (waiting[x.location || ''] || 0) + 1; });
-  const ordered = misses.slice().sort((a, b) => (b.sevRank - a.sevRank) || (waiting[b.location || ''] - waiting[a.location || '']) ||
-    String(a.location || '').localeCompare(String(b.location || '')) || (b.overdueDays - a.overdueDays) || String(a.equipment).localeCompare(String(b.equipment)));
+  const ordered = misses.slice().sort(v2
+    ? (a, b) => (a.tier - b.tier) || (waiting[b.location || ''] - waiting[a.location || '']) ||
+      String(a.location || '').localeCompare(String(b.location || '')) || (a.ehi - b.ehi) || (b.overdueDays - a.overdueDays) || String(a.equipment).localeCompare(String(b.equipment))
+    : (a, b) => (b.sevRank - a.sevRank) || (waiting[b.location || ''] - waiting[a.location || '']) ||
+      String(a.location || '').localeCompare(String(b.location || '')) || (b.overdueDays - a.overdueDays) || String(a.equipment).localeCompare(String(b.equipment)));
 
   const placements = [];
   ordered.forEach(miss => {
@@ -295,13 +402,13 @@ function dyPlan(y, m, misses, existingRows) {
     const interval = nextOcc ? Math.round((nextOcc - origDt) / 86400000) : 0;
     const minGap = nextOcc ? Math.max(1, Math.min(DY_MIN_GAP_DAYS, Math.floor(interval / 2))) : 0;
     const gapOf = d => nextOcc ? Math.abs(Math.round((d - nextOcc) / 86400000)) : 99;
-    const candidates = wds.filter(d => d >= todayDt && d > origDt && freeFor(d, miss.equipment));
+    const candidates = wds.filter(d => d >= todayDt && (miss.recheck ? d >= miss.earliest : d > origDt) && freeFor(d, miss.equipment));   // a re-check waits DY_NR_GAP_DAYS after the standby mark
     if (!candidates.length) return;
     const isRes = d => reserveSet.has(dsFmt(d));
     const work = candidates.filter(d => !isRes(d)), res = candidates.filter(isRes);
     const spaced = arr => arr.filter(d => gapOf(d) >= minGap);
     // opening a NEW location on a working day only pays for a real cluster (or an Alarm+ machine) — never for one or two machines
-    const worthTrip = miss.sevRank >= 1 || (waiting[miss.location || ''] || 0) >= DY_ADDON_MIN_CLUSTER;
+    const worthTrip = (v2 ? (miss.scored && miss.tier <= 1) : miss.sevRank >= 1) || (waiting[miss.location || ''] || 0) >= DY_ADDON_MIN_CLUSTER;   // poor / critical health (old rule: Alarm+), or a real cluster
 
     // piggy-back (no extra walking): earliest day any group is already at this location (the lightest group that day)
     const piggy = days => {
@@ -358,8 +465,8 @@ function dyPlan(y, m, misses, existingRows) {
     //  3) last resorts on working days: a free ride-along even though close to the regular visit, then a near add-on
     let best = piggy(spaced(work)) || (worthTrip ? addon(spaced(work)) : null) || reserve(spaced(res)) || reserve(res) || piggy(work) || (worthTrip ? addon(work) : null);
 
-    // Rules would leave an Alarm / Alert / Critical machine unplaced: its criticality outranks the day / location limits.
-    if (!best && miss.sevRank >= 1) {
+    // (months BEFORE FEATURES_FROM only) Rules would leave an Alarm / Alert / Critical machine unplaced: its criticality outranks the day / location limits.
+    if (!v2 && !best && miss.sevRank >= 1) {
       const slack = DY_DAY_CAP + 10;
       for (const dt of candidates) {          // still prefer a day a group is already at that location
         const ds = dsFmt(dt); let pick = null;
@@ -381,7 +488,7 @@ function dyPlan(y, m, misses, existingRows) {
         best = sc;
       }
     }
-    if (!best) return;   // genuinely no room left this month
+    if (!best) return;   // no room left this month
 
     const ds = dsFmt(best.dt), k = ensure(best.team, ds);
     const had = locs[k].has(miss.location);
@@ -466,8 +573,10 @@ async function dyRecompute(y, m) {
   const orig = new Map(existing.map(r => [keyOf(r), Object.assign({}, r)]));
   const state = existing.map(r => Object.assign({}, r));
   const misses = dyBuildMisses(y, m, today);
+  const v2 = dyV2(y, m);
+  const needOf = r => 100 - ((typeof ehiPriority === 'function') ? ehiPriority(r.equipment) : 50);   // lower health = greater need
   const lastReadMap = (typeof buildLastReadingMap === 'function') ? buildLastReadingMap() : {};
-  const sevOf = r => DY_SEV_RANK[(lastReadMap[r.equipment] && lastReadMap[r.equipment].severity) || 'NORMAL'] || 0;
+  const sevOf = r => DY_SEV_RANK[(lastReadMap[r.equipment] && lastReadMap[r.equipment].severity) || 'NORMAL'] || 0;   // (old rule)
   const rowOf = k => state.find(r => keyOf(r) === k);
   let lastUnplaced = 0; const rescheduledKeys = new Set();
   for (let pass = 0; pass < 4; pass++) {
@@ -478,9 +587,9 @@ async function dyRecompute(y, m) {
     Object.keys(byDate).forEach(d => {
       const ls = Object.keys(byDate[d]);
       if (ls.length <= DY_MAX_CU_LOCS || reserveStr.has(d)) return;
-      const top = l => Math.max.apply(null, byDate[d][l].map(sevOf));
-      ls.sort((a, b) => (top(b) - top(a)) || (byDate[d][b].length - byDate[d][a].length));   // critical locations keep their place
-      ls.slice(DY_MAX_CU_LOCS).forEach(l => byDate[d][l].forEach(r => { if (sevOf(r) < 1) capDrop.add(keyOf(r)); }));
+      const top = l => Math.max.apply(null, byDate[d][l].map(v2 ? needOf : sevOf));
+      ls.sort((a, b) => (top(b) - top(a)) || (byDate[d][b].length - byDate[d][a].length));   // the locations holding the neediest machines keep their place
+      ls.slice(DY_MAX_CU_LOCS).forEach(l => byDate[d][l].forEach(r => { if (v2 || sevOf(r) < 1) capDrop.add(keyOf(r)); }));   // new rules: the limit holds for everyone; old rules: Alarm+ keeps its place
     });
     // catch-ups whose day has passed with the equipment STILL unread are re-scheduled to the next suitable day (same rules)
     const failedKeys = state.filter(r => r.status === 'active' && String(r.assigned_date).slice(0, 10) < todayStr && dyOutcome(r, todayStr).k === 'failed').map(keyOf);

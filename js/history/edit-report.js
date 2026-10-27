@@ -47,7 +47,7 @@ function renderEditModal() {
   let html = `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">
     <div class="fg">
       <label>EQUIPMENT</label>
-      <div style="font-size:13px;font-weight:700;color:var(--text);padding:6px 0">${equipment}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text);padding:6px 0">${escHtml(equipment)}</div>
     </div>
     <div class="fg">
       <label>READING DATE</label>
@@ -86,16 +86,16 @@ function renderEditModal() {
   sortRowsByMasterPoints(rows, equipment).forEach(r => {
     const pt = r.point;
     const sid = pt.replace(/[^a-zA-Z0-9]/g,'_');
-    html += `<tr><td style="font-weight:600">${pt}</td>`;
+    html += `<tr><td style="font-weight:600">${escHtml(pt)}</td>`;
     paramKeys.forEach(k => {
-      html += `<td><input type="number" step="0.01" min="0" value="${editReadings[pt]?.[k]||''}" style="width:80px;padding:4px 6px;border:1px solid var(--border2);border-radius:5px;font-size:12px" id="edit_${sid}_${k}" oninput="editReadings['${pt}']['${k}']=this.value"></td>`;
+      html += `<td><input type="number" step="0.01" min="0" value="${editReadings[pt]?.[k]||''}" style="width:80px;padding:4px 6px;border:1px solid var(--border2);border-radius:5px;font-size:12px" id="edit_${sid}_${k}" oninput="editReadings[${jsArg(pt)}][${jsArg(k)}]=this.value"></td>`;
     });
     html += `</tr>`;
   });
   html += `</tbody></table></div>`;
   // Build the recommendations section with dropdown + manual textarea
   const editRemarks = rows[0]?.remarks || '';
-  const recOptions = STD_RECS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  const recOptions = STD_RECS.map(r=>`<option value="${escHtml(r)}">${escHtml(r)}</option>`).join('');
   html += `<div style="margin-top:14px;padding:12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">
     <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">📋 Recommendations</label>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
@@ -106,9 +106,9 @@ function renderEditModal() {
       <button class="btn btn-sm btn-primary" onclick="(function(){const sel=document.getElementById('edit-rec-dropdown');if(!sel.value)return;const ta=document.getElementById('edit-recs-field');const cur=ta.value.trim();ta.value=cur?(cur+'|'+sel.value):sel.value;editRecs=ta.value;sel.value='';ta.dispatchEvent(new Event('input'));})()">➕ Add to Recommendations</button>
     </div>
     <label style="font-size:10px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">RECOMMENDATIONS / NOTES</label>
-    <textarea id="edit-recs-field" oninput="editRecs=this.value" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;min-height:70px;resize:vertical">${editRecs}</textarea>
+    <textarea id="edit-recs-field" oninput="editRecs=this.value" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;min-height:70px;resize:vertical">${escHtml(editRecs)}</textarea>
     <label style="font-size:10px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px;margin-top:8px">REMARKS</label>
-    <textarea id="edit-remarks-field" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;min-height:45px;resize:vertical">${editRemarks}</textarea>
+    <textarea id="edit-remarks-field" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;min-height:45px;resize:vertical">${escHtml(editRemarks)}</textarea>
   </div>`;
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">
     <button class="btn" onclick="closeEditReport()">Cancel</button>

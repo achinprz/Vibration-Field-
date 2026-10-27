@@ -2,12 +2,7 @@
 
 // ── Download as Excel (.xlsx) — ALL_READINGS format ────────────────────────
 
-function _vibeMonTemplateBytes(){
-  const bin = atob(VIBEMON_XLSM_TEMPLATE_B64);
-  const u8 = new Uint8Array(bin.length);
-  for (let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
-  return u8;
-}
+// (the template is stored encrypted — xlsm-lock.js asks for the security password and returns the file bytes)
 function _xmlEsc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 }
@@ -112,6 +107,10 @@ async function downloadSQLReadingsExcel() {
   ).sort((a,b)=>b.date.localeCompare(a.date)||a.equipment.localeCompare(b.equipment));
   if (filtered.length === 0) { showToast('No readings found for ' + rangeLabel + '. Please adjust filters and try again.', 'orange'); return; }
 
+  // the macro-enabled file is protected by the security password (Admin Panel → Password management)
+  const tplBytes = await xlsmUnlockTemplate();
+  if (!tplBytes) return;   // cancelled
+
   const today = new Date();
   const p = n => String(n).padStart(2,'0');
   const dateStr = today.getFullYear() + p(today.getMonth()+1) + p(today.getDate());
@@ -119,7 +118,7 @@ async function downloadSQLReadingsExcel() {
   const rows = filtered.map(r => _buildSQLRow(r));
 
   try {
-    const zip = await JSZip.loadAsync(_vibeMonTemplateBytes());
+    const zip = await JSZip.loadAsync(tplBytes);
 
     // 1) Replace the (first) worksheet XML with our data, keeping whatever button(s) the
     // template itself has wired up (see _extractSheetTail — it reads the ORIGINAL sheet before

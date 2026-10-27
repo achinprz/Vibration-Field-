@@ -1,0 +1,14 @@
+/* Entry guardrails — hints under values (step 2) and the "Checks" box on the review step */
+input.eg-flag { outline: 2px solid #F59E0B; outline-offset: 0; }
+.eg-hint { font-size: 11px; line-height: 1.35; margin: -2px 0 8px; padding: 4px 9px; border-radius: 6px; color: #FBBF24; background: rgba(245, 158, 11, .14); }
+.eg-hint.block { color: #FCA5A5; background: rgba(239, 68, 68, .16); }
+.eg-box { margin: 10px 0 0; padding: 9px 12px; border-radius: 8px; font-size: 12px; color: #FBBF24; background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .45); }
+.eg-box.block { color: #FCA5A5; background: rgba(239, 68, 68, .12); border-color: rgba(239, 68, 68, .5); }
+.eg-box.ok { color: #6EE7B7; background: rgba(16, 185, 129, .10); border-color: rgba(16, 185, 129, .4); }
+.eg-box-title { font-weight: 700; margin-bottom: 4px; }
+.eg-line { padding: 2px 0; }
+:root.theme-light .eg-hint { color: #92400E; background: #FFF4D6; }
+:root.theme-light .eg-hint.block { color: #991B1B; background: #FEE2E2; }
+:root.theme-light .eg-box { color: #92400E; background: #FFF8E6; }
+:root.theme-light .eg-box.block { color: #991B1B; background: #FEF2F2; }
+:root.theme-light .eg-box.ok { color: #166534; background: #ECFDF5; }

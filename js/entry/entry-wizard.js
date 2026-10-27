@@ -174,6 +174,7 @@ function onParamInput(pt, key, type) {
   entryReadings[pt][key]=val;
   updatePtOverall(pt);
   updateProgress();
+  if (typeof egLive === 'function') { try { egLive(pt, key); } catch(e) {} }   // entry-guardrails.js — hint under doubtful values
 }
 
 function updatePtOverall(pt) {
@@ -340,11 +341,12 @@ function buildReview() {
   const recDiv=document.getElementById('s4-recs');
   if(allRecs.length) {
     recDiv.innerHTML='<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted)">RECOMMENDATIONS</div>'+
-      allRecs.map((r,i)=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">${i+1}. ${r}</div>`).join('');
+      allRecs.map((r,i)=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">${i+1}. ${escHtml(r)}</div>`).join('');
   } else {
     recDiv.innerHTML='<div style="font-size:12px;color:var(--muted)">No recommendations added.</div>';
   }
   if(ovEl && ovEl.value) applyOverrideSeverity(ovEl.value);
+  if (typeof egReviewBox === 'function') { try { egReviewBox(); } catch(e) {} }   // entry-guardrails.js — "Checks" box
 }
 
 // ---- SEVERITY OVERRIDE ----
@@ -360,4 +362,5 @@ function applyOverrideSeverity(val) {
   const colors={ALERT:'#9A3412',ALARM:'#92400E',NORMAL:'#1E8449',CRITICAL:'#991B1B'};
   sel.style.color=val ? (colors[val]||'var(--text)') : 'var(--text)';
   sel.style.fontWeight=val?'700':'400';
+  if (typeof egReviewBox === 'function') { try { egReviewBox(); } catch(e) {} }
 }

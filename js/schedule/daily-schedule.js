@@ -121,7 +121,7 @@ let _dsOccMemo = null;
 function dsOccurrenceStates(y, m, uptoStr){
   const rd = dsReadingsArr() || [];
   const S = dsScheduleFor(y, m);   // the schedule version in force in that month
-  const sig = [y, m, uptoStr||'', rd.length, dsVersionFor(y, m), JSON.stringify(Object.keys(S).map(t=>Object.keys(S[t]||{}).length)), (typeof dyCuSig==='function'?dyCuSig(y,m):'')].join('|');
+  const sig = [y, m, uptoStr||'', rd.length, dsVersionFor(y, m), JSON.stringify(Object.keys(S).map(t=>Object.keys(S[t]||{}).length)), (typeof dyCuSig==='function'?dyCuSig(y,m):''), (typeof STATUS_LOG!=='undefined'?STATUS_LOG.length:0)].join('|');
   if(_dsOccMemo && _dsOccMemo.sig === sig && Date.now() - _dsOccMemo.t < 300) return _dsOccMemo.val;
   const wds = dsWorkingDaysOfMonth(y,m);
   const lastDay = new Date(y,m+1,0).getDate();
@@ -198,6 +198,45 @@ function dsOccurrenceStates(y, m, uptoStr){
       (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: f.ds, by: f.t, insp: e.insp[f.t] || '', delta: f.d - o.day };
     });
   });
+  // 5. "Not running / Standby" marks (status-log.js) excuse a visit that no real reading filled: that visit then counts as COMPLETE
+  //    (state.nr = true). Real readings always win — marks only fill what is still open — and a mark never counts as a reading.
+  try {
+    if (typeof nrMarksByKey === 'function' && typeof STATUS_LOG !== 'undefined' && STATUS_LOG.length && (typeof fxRulesFor !== 'function' || fxRulesFor(y, m))) {
+      Object.keys(occ).forEach(k=>{
+        const marks = nrMarksByKey(k).filter(x=>x.date.slice(0,7) === mk && (!uptoStr || x.date <= uptoStr));
+        if(!marks.length) return;
+        const list = occ[k], days = Array.from(new Set(list.map(o=>o.day))).sort((a,b)=>a-b), usedMark = new Set();
+        const fill = (mark, o) => {
+          const own = mark.team === o.team || mark.team === '';
+          (out[o.team] = out[o.team] || {})[o.key] = { state: own ? 'own' : 'other', date: mark.date, by: mark.team, insp: mark.insp, delta: parseInt(mark.date.slice(8,10),10) - o.day, nr: true, nrStatus: mark.status };
+        };
+        const prefer = (mark) => (a,b)=> ((a.team===mark.team||mark.team==='')?0:1) - ((b.team===mark.team||mark.team==='')?0:1);
+        // (a) a mark inside a visit's window (a day or two early / late) excuses that visit
+        marks.forEach((mark,i)=>{
+          const d = parseInt(mark.date.slice(8,10),10);
+          const cand = list.filter(o=>{
+            if((out[o.team]||{})[o.key]) return false;
+            const ix = days.indexOf(o.day);
+            const lo = ix === 0 ? 1 : Math.floor((days[ix-1] + o.day)/2) + 1;
+            const hi = ix === days.length-1 ? lastDay : Math.floor((o.day + days[ix+1])/2);
+            return d >= lo && d <= hi;
+          });
+          if(!cand.length) return;
+          cand.sort((a,b)=> prefer(mark)(a,b) || Math.abs(a.day-d) - Math.abs(b.day-d));
+          fill(mark, cand[0]); usedMark.add(i);
+        });
+        // (b) a mark taken later — typically on the catch-up day of a missed visit — excuses the OLDEST visit still open before it
+        marks.forEach((mark,i)=>{
+          if(usedMark.has(i)) return;
+          const d = parseInt(mark.date.slice(8,10),10);
+          const cand = list.filter(o=> !(out[o.team]||{})[o.key] && o.day < d);
+          if(!cand.length) return;
+          cand.sort((a,b)=> prefer(mark)(a,b) || a.day - b.day);
+          fill(mark, cand[0]); usedMark.add(i);
+        });
+      });
+    }
+  } catch(e){ console.warn('standby marks failed:', e); }
   try { if (typeof dyAugmentStates === 'function') dyAugmentStates(out, y, m, uptoStr || dsFmt(new Date())); } catch(e){ console.warn('dyAugmentStates failed:', e); }
   _dsOccMemo = { sig, t: Date.now(), val: out };
   return out;
@@ -463,14 +502,16 @@ function dsSelectDay(d, keep){
     const pendCu = (!it._cu && !s && typeof dyPendingCatchupFor === 'function') ? dyPendingCatchupFor(DS_VIEW.y, DS_VIEW.m, it._team, it._wd, it.n) : null;
     const cuPendBadge = pendCu ? `<div><span class="cu-badge" title="Re-assigned as a catch-up on ${escHtml(dsShortDate(String(pendCu.assigned_date).slice(0,10)))} for ${escHtml(TEAM_NAME[pendCu.assigned_team]||pendCu.assigned_team)} — still not completed">🔁 Catch-up · ${escHtml(dsShortDate(String(pendCu.assigned_date).slice(0,10)))}</span></div>` : '';
     const cuDoneBadge = (!it._cu && s && s.cu) ? `<div><span class="cu-badge" title="Missed on the day, re-scheduled as a catch-up and completed — counted as done">🔁 Catch-up</span></div>` : '';
-    const cuBadge = it._cu ? `<div><span class="cu-badge"title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">🔁 Catch-up</span></div>` : '';
+    const isRecheck = it._cu && typeof dyIsRecheckRow === 'function' && dyIsRecheckRow(it._row, allStatesFull);
+    const cuBadge = it._cu ? `<div><span class="cu-badge"title="Originally due ${escHtml(it._origDate)} for ${escHtml(TEAM_NAME[it._team]||it._team)} — moved here (${escHtml(DY_SRC_LABEL[it._source]||it._source)})">${isRecheck ? '🔍 Re-check' : '🔁 Catch-up'}</span></div>` : '';
+    const nrBadge = (s && s.nr && typeof dyNrBadge === 'function') ? dyNrBadge(it, s, DS_VIEW.y, DS_VIEW.m) : '';
     const cuUndo = (it._cu && typeof AUTH!=='undefined' && AUTH.role==='admin') ? `<button class="btn btn-sm" style="color:#7C3AED;border-color:#7C3AED" onclick="event.stopPropagation();dyUndo(${it._id})" title="Undo this catch-up — equipment goes back to Missed until reassigned">↩ Undo</button>` : '';
     const actionHtml = `<td class="actcell" data-label="Action"><div class="dsa">
       ${canClick ? `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openEquipmentForEntry(${jsArg(it.n)},'daily')" title="Take Reading">📝 Take</button>` : ''}
       <button class="btn btn-sm" onclick="event.stopPropagation();viewEquipHistory(${jsArg(it.n)})">👁 History</button>
       ${cuUndo}
     </div></td>`;
-    const html = `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsLocFreqMeta(dispLoc, it.f)}${cuBadge}${cuDoneBadge}${cuPendBadge}</td><td data-label="Stage/Unit">${escHtml(dsStageUnit(dispUnit, dispArea))}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
+    const html = `<tr ${clickAttr} class="${ownDone?'done':''}"><td data-label="#">${i+1}</td><td class="eqcell" data-label="Equipment"><strong>${escHtml(it.n)}</strong>${dsLocFreqMeta(dispLoc, it.f)}${cuBadge}${cuDoneBadge}${cuPendBadge}${nrBadge}</td><td data-label="Stage/Unit">${escHtml(dsStageUnit(dispUnit, dispArea))}</td><td data-label="Last reading">${lastHtml}</td><td data-label="Completed by" style="font-size:11px;color:${coveredByOther?'#92400E':'var(--muted)'}${coveredByOther?';font-weight:700':''}">${escHtml(completedBy)}</td><td data-label="Reading date" style="font-weight:600;color:${ownDone?'var(--green-text)':coveredByOther?'#92400E':'var(--text)'}">${readDateStr}${timing}</td>${actionHtml}</tr>`;
     return { loc: dispLoc, html };
   });
   dsBuildLocOptions(_dsRowsCache.map(r => r.loc));

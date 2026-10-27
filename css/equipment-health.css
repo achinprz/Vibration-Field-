@@ -1,0 +1,30 @@
+/* Equipment Health Index — badge + "Worst Health" popup */
+.ehi-badge { display: inline-block; font-weight: 800; font-size: 12px; line-height: 1; padding: 5px 10px; border-radius: 999px; letter-spacing: .2px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.25); vertical-align: middle; }
+.ehi-badge.ehi-big { font-size: 14px; padding: 6px 13px; margin-left: 8px; }
+
+.ehi-modal-bg { display: none; position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 14px; }
+.ehi-modal-bg.open { display: flex; }
+.ehi-modal { width: min(98vw, 1100px); max-height: 92vh; display: flex; flex-direction: column; background: var(--surface, #fff); color: var(--text, #111827); border: 1px solid var(--border, #d1d5db); border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.55); overflow: hidden; }
+.ehi-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border, #d1d5db); background: var(--surface2, rgba(100,116,139,.12)); }
+.ehi-title { font-weight: 800; font-size: 15px; }
+.ehi-title small { font-weight: 500; color: var(--muted, #6b7280); margin-left: 8px; font-size: 12px; }
+.ehi-x { background: none; border: none; color: var(--muted, #6b7280); font-size: 30px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.ehi-x:hover { color: #DC2626; }
+.ehi-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border, #d1d5db); }
+.ehi-filters select, .ehi-filters input[type=text] { min-width: 120px; flex: 1 1 130px; max-width: 220px; }
+.ehi-chk { font-size: 12px; color: var(--muted, #6b7280); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ehi-body { overflow: auto; padding: 0 0 8px; }
+.ehi-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ehi-table th { position: sticky; top: 0; background: var(--surface2, #f1f5f9); text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #6b7280); border-bottom: 1px solid var(--border, #d1d5db); }
+.ehi-table th.ehi-sort { cursor: pointer; color: var(--blue-text, #1D4E8A); }
+.ehi-table td { padding: 7px 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.ehi-table tbody tr { cursor: pointer; }
+.ehi-table tbody tr:hover { background: rgba(59,130,246,.10); }
+.ehi-eq { font-weight: 700; }
+.ehi-empty { text-align: center; color: var(--muted, #6b7280); padding: 26px !important; cursor: default; }
+.ehi-note { font-size: 11px; color: var(--muted, #6b7280); padding: 8px 14px 0; }
+.ehi-sev { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.ehi-s-norm { background: #DCFCE7; color: #166534; } .ehi-s-alarm { background: #FEF3C7; color: #92400E; }
+.ehi-s-alert { background: #FFEDD5; color: #9A3412; } .ehi-s-crit { background: #FEE2E2; color: #991B1B; }
+@media (max-width: 640px) { .ehi-table th:nth-child(3), .ehi-table td:nth-child(3), .ehi-table th:nth-child(8), .ehi-table td:nth-child(8) { display: none; } }
+.btn.btn-ehi { background: #DC2626 !important; color: #fff !important; border-color: #DC2626 !important; font-weight: 700; }

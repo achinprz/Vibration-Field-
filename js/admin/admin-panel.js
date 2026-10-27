@@ -10,6 +10,7 @@ function apSelect(key) {
   document.querySelectorAll('#admin-panel-modal .ap-nav-btn').forEach(b => b.classList.toggle('on', b.getAttribute('data-ap') === key));
   try { localStorage.setItem(AP_TAB_KEY, key); } catch(e) {}
   if (key === 'recs' && typeof rmOpen === 'function') rmOpen();
+  if (key === 'passwords' && typeof pwmRender === 'function') pwmRender();
   if (key === 'theme') syncThemeToggleUI();
   const c = document.querySelector('#admin-panel-modal .ap-content'); if (c) c.scrollTop = 0;
 }
@@ -45,7 +46,7 @@ async function renderUserTable() {
   }
   users.forEach((u) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${u.username}</td><td>${u.name||u.displayName||''}</td>
+    tr.innerHTML = `<td>${escHtml(u.username)}</td><td>${escHtml(u.name||u.displayName||'')}</td>
       <td><span class="role-badge role-${(u.role||'viewer').toLowerCase()}">${u.role === 'EDITOR' ? 'ENGINEER' : u.role}</span></td>
       <td><span style="color:var(--muted);font-size:11px">Edit in Supabase</span></td>`;
     tbody.appendChild(tr);

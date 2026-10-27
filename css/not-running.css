@@ -1,0 +1,19 @@
+/* "Not running / Standby" dialog + schedule tag */
+.nr-modal-bg { display: none; position: fixed; inset: 0; z-index: 9500; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); align-items: center; justify-content: center; padding: 14px; }
+.nr-modal-bg.open { display: flex; }
+.nr-modal { width: min(96vw, 460px); max-height: 92vh; overflow: auto; background: var(--surface, #fff); color: var(--text, #111827); border: 1px solid var(--border, #d1d5db); border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.5); }
+.nr-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; font-weight: 800; font-size: 15px; border-bottom: 1px solid var(--border, #d1d5db); }
+.nr-x { background: none; border: none; font-size: 28px; line-height: 1; cursor: pointer; color: var(--muted, #6b7280); }
+.nr-body { padding: 14px 16px; }
+.nr-eq { font-weight: 800; font-size: 15px; margin-bottom: 10px; }
+.nr-eq small { font-weight: 500; color: var(--muted, #6b7280); margin-left: 6px; }
+.nr-reasons { display: grid; gap: 6px; margin-bottom: 10px; }
+.nr-reason { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border, #d1d5db); border-radius: 8px; cursor: pointer; }
+.nr-reason:has(input:checked) { border-color: #2563EB; background: rgba(37,99,235,.10); }
+.nr-reason span { display: flex; flex-direction: column; font-size: 13px; }
+.nr-reason small { color: var(--muted, #6b7280); font-size: 11px; }
+#nr-remarks { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid var(--border, #d1d5db); border-radius: 8px; font-size: 13px; resize: vertical; box-sizing: border-box; }
+.nr-note { margin-top: 10px; font-size: 12px; padding: 8px 10px; border-radius: 8px; background: rgba(16,185,129,.12); color: var(--text, #111827); }
+.nr-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 14px; }
+.cu-badge.nr-badge { background: #E0E7FF; color: #3730A3; border-color: #A5B4FC; }
+.btn.btn-nr { background: #FEF3C7; color: #92400E; border-color: #D97706; font-weight: 700; white-space: nowrap; }

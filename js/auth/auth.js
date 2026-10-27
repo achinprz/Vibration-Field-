@@ -67,6 +67,7 @@ async function _tryOfflineLogin(uname, pass) {
   const cache = _loadUsersCache();
   const entry = cache[uname.toLowerCase()];
   if (!entry) return null;
+  if (_a2On() && entry.role === 'admin') return null;   // admin sign-in always needs internet (authenticator step)
   try {
     const hash = await _sha256(pass);
     if (hash === entry.hash) {
@@ -123,17 +124,6 @@ async function doLogin() {
   if (btnEl) { btnEl.textContent = '🔄 Verifying...'; btnEl.disabled = true; }
   errEl.classList.remove('show');
 
-  // Hardcoded offline fallback — works when GSheet unreachable (file:// on mobile or no internet)
-  if (uname.toLowerCase() === 'admin' && pass === 'NTPC@1011') {
-    AUTH = { loggedIn: true, username: 'Admin', displayName: 'Administrator', role: 'admin' };
-    try { localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e2){}
-    try { localStorage.setItem(CREDS_KEY, JSON.stringify({u: uname, p: pass})); } catch(e3){}
-    await _cacheUserCredential('Admin', pass, 'Administrator', 'admin');
-    if (btnEl) { btnEl.textContent = '🔐 Login'; btnEl.disabled = false; }
-    applyAuth();
-    return;
-  }
-
   try {
     // Query Supabase users table for matching credentials
     const passHash = await _sha256(pass);
@@ -164,6 +154,16 @@ async function doLogin() {
     if (result.status === 'ok' && result.user) {
       const u = result.user;
       const roleMap = { 'ADMIN': 'admin', 'EDITOR': 'editor', 'VIEWER': 'viewer' };
+      const isAdmin = roleMap[(u.role||'').toUpperCase()] === 'admin';
+      if (isAdmin && _a2On()) {
+        const tf = await admin2faRun(u.username, pass);
+        document.getElementById('login-pass').value = '';
+        if (!tf.ok) {
+          openLoginScreen();
+          if (tf.msg) { errEl.textContent = tf.msg; errEl.classList.add('show'); }
+          return;
+        }
+      }
       AUTH = {
         loggedIn: true,
         username: u.username,
@@ -171,8 +171,14 @@ async function doLogin() {
         role: roleMap[(u.role||'').toUpperCase()] || 'viewer'
       };
       try { localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e){}
-      try { localStorage.setItem(CREDS_KEY, JSON.stringify({u: uname, p: pass})); } catch(ec){}
-      await _cacheUserCredential(u.username, pass, u.name || u.username, roleMap[(u.role||'').toUpperCase()] || 'viewer');
+      if (isAdmin && _a2On()) {
+        // an admin's password is never kept on the phone (neither for auto-login nor for offline sign-in)
+        try { localStorage.removeItem(CREDS_KEY); } catch(ec){}
+        try { const c = _loadUsersCache(); delete c[u.username.toLowerCase()]; localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(c)); } catch(ec){}
+      } else {
+        try { localStorage.setItem(CREDS_KEY, JSON.stringify({u: uname, p: pass})); } catch(ec){}
+        await _cacheUserCredential(u.username, pass, u.name || u.username, roleMap[(u.role||'').toUpperCase()] || 'viewer');
+      }
       applyAuth();
     } else {
       errEl.textContent = '❌ ' + (result.msg || 'Invalid username or password.');
@@ -191,7 +197,8 @@ async function doLogin() {
         applyAuth();
         return;
       } else {
-        errEl.textContent = '📵 Offline & no cached login for this user. Please login online at least once first.';
+        const _ce = _loadUsersCache()[uname.toLowerCase()];
+        errEl.textContent = (_a2On() && _ce && _ce.role === 'admin') ? '📵 Admin sign-in needs internet (2-step check).' : '📵 Offline & no cached login for this user. Please login online at least once first.';
         errEl.classList.add('show');
       }
     } else {
@@ -204,6 +211,7 @@ async function doLogin() {
 }
 
 function doLogout() {
+  if (typeof admin2faSignOut === 'function' && AUTH.role === 'admin') admin2faSignOut();
   // Clear saved credentials and session — but keep USERS_CACHE_KEY so offline login still works
   try { localStorage.removeItem(CREDS_KEY); } catch(e){}
   try { localStorage.removeItem(AUTH_KEY); } catch(e){}
@@ -213,6 +221,7 @@ function doLogout() {
 }
 
 function applyAuth() {
+  if (typeof fxApply === 'function') fxApply();   // feature-gate.js: show / hide the features that start on FEATURES_FROM
   document.getElementById('login-screen').classList.remove('open');
   // Body class for CSS-driven visibility
   document.body.classList.remove('role-admin','role-editor','role-viewer');

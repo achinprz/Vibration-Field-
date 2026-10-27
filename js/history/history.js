@@ -196,7 +196,7 @@ function renderHistory() {
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:14px;font-weight:700;cursor:pointer;color:var(--blue)"
             onclick="showEquipTrend(${jsArg(session.equipment)})">📍 ${escHtml(session.equipment)}</span>
-          <span style="font-size:12px;color:var(--muted)">${session.unit} · ${session.area}</span>
+          <span style="font-size:12px;color:var(--muted)">${escHtml(session.unit)} · ${escHtml(session.area)}</span>
           <span data-session-badge="${sessionKey}">${badgeHtml(os)}</span>
           ${hasMultiDate ? `<button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="showEquipTrend(${jsArg(session.equipment)})">📈 Trend</button>` : ''}
           ${(AUTH.role==='admin'||(AUTH.role==='editor'&&((session.inspector||'')=== AUTH.displayName||(session.rows[0]&&session.rows[0].username===AUTH.username)))) ? `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:${session.isDecoupled?'#FEF3C7':'var(--bg)'};border:1px solid ${session.isDecoupled?'#D97706':'var(--border2)'};border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E" title="Toggle Decoupled Trial status"><input type="checkbox" ${session.isDecoupled?'checked':''} onchange="toggleHistoryDecoupled(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')},this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#D97706;margin:0">Decoupled</label>` : (session.isDecoupled ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#FEF3C7;border:1px solid #D97706;border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E">🔗 Decoupled</span>` : '')}
@@ -204,7 +204,7 @@ function renderHistory() {
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--muted)">📅 ${fmtDateDisplay(session.date)}</span>
           ${session.createdOn ? `<span style="font-size:11px;color:var(--muted)" title="Entry time (local)">🕐 ${(session.createdOn.replace('T',' ').split(' ')[1] || '').slice(0,8)}</span>` : ''}
-          <span style="font-size:11px;color:var(--muted)">👤 ${session.inspector || '—'}</span>
+          <span style="font-size:11px;color:var(--muted)">👤 ${escHtml(session.inspector || '—')}</span>
           <div title="Overall equipment status" style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px">
             <span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">STATUS</span>
             ${(AUTH.role === 'viewer' || (AUTH.role === 'editor' && session.date !== _todayFmt()))
@@ -226,7 +226,7 @@ function renderHistory() {
               <option value="">— Set —</option>
               ${(typeof DEPTS_LIST!=='undefined'?DEPTS_LIST:['AHD','CHP','EMD','OFS','BMD','TMD','C&I','TAD']).map(d=>`<option value="${d}" ${sessionDept===d?'selected':''}>${d}</option>`).join('')}
             </select>
-          </div>` : (sessionDept ? `<div style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px"><span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">DEPT</span><span style="font-size:11px;font-weight:700" data-session-dept="${sessionKey}">${sessionDept}</span></div>` : '')}
+          </div>` : (sessionDept ? `<div style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px"><span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">DEPT</span><span style="font-size:11px;font-weight:700" data-session-dept="${escHtml(sessionKey)}">${escHtml(sessionDept)}</span></div>` : '')}
           ${(AUTH.role==='admin'||(AUTH.role==='editor'&&((session.inspector||'')=== AUTH.displayName||(session.rows[0]&&session.rows[0].username===AUTH.username))&&session.date===_todayFmt())) ? `<button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="openEditReport(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">✏️ Edit</button>` : ''}
           ${AUTH.role==='admin' ? `<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteSessionReadings(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">🗑 Delete</button>` : ''}
           ${AUTH.role!=='viewer' ? `<button class="btn btn-sm btn-wa" onclick="openWASessionModal(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">📲 WhatsApp</button>` : ''}
@@ -249,7 +249,7 @@ function renderHistory() {
               const rowBg = ptSev==='CRITICAL'?'background:var(--sev-critical-bg,#FFF0F0)':ptSev==='ALERT'?'background:var(--sev-alert-bg,#FFF4EE)':ptSev==='ALARM'?'background:var(--sev-alarm-bg,#FFFBEB)':'';
               const ptEmoji = {NORMAL:'✅',ALARM:'⚠️',ALERT:'🔶',CRITICAL:'🚨'}[ptSev] || '';
               return `<tr style="${rowBg}">
-                <td style="font-weight:600">${ptEmoji} ${r.point}</td>
+                <td style="font-weight:600">${ptEmoji} ${escHtml(r.point)}</td>
                 ${activeCols.map(k => {
                   const v = r[k]; if (!v && v !== 0) return '<td style="color:var(--hint)">—</td>';
                   const type = k.toLowerCase().includes('acc') ? 'acc' : k.toLowerCase().includes('dis') ? 'dis' : 'vel';
@@ -266,7 +266,7 @@ function renderHistory() {
       <div style="padding:8px 14px;border-top:1px solid var(--border);background:var(--bg-card-header,#fafbfc)">
         <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Recommendations</span>
         <div style="margin-top:5px;display:flex;flex-direction:column;gap:3px">
-          ${allRecs.map((rec, i) => `<div style="font-size:12px;display:flex;gap:6px"><span style="color:var(--muted);min-width:14px">${i+1}.</span><span>${rec}</span></div>`).join('')}
+          ${allRecs.map((rec, i) => `<div style="font-size:12px;display:flex;gap:6px"><span style="color:var(--muted);min-width:14px">${i+1}.</span><span>${escHtml(rec)}</span></div>`).join('')}
         </div>
       </div>` : ''}
       ${(()=>{

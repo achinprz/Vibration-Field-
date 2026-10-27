@@ -188,7 +188,7 @@ function renderExceptions() {
     const rspan=s.rows.length;
     const grpCls = si%2===0 ? 'exc-grp-a' : 'exc-grp-b';
     const allRecs=[...new Set(s.rows.map(r=>r.recommendations||'').filter(Boolean).join('|').split('|').map(x=>x.trim()).filter(Boolean))];
-    const recsHtml = allRecs.length ? allRecs.slice(0,3).join(' • ')+(allRecs.length>3?` +${allRecs.length-3} more`:'') : '<span style="color:var(--hint)">—</span>';
+    const recsHtml = allRecs.length ? allRecs.slice(0,3).map(escHtml).join(' • ')+(allRecs.length>3?` +${allRecs.length-3} more`:'') : '<span style="color:var(--hint)">—</span>';
     const sessionDept = (s.rows.find(r=>r.responsibleDept)||{}).responsibleDept || '';
     const currentDept = excDeptFor(s.equipment, sessionDept);
 
@@ -199,12 +199,12 @@ function renderExceptions() {
       if(ri===0){
         html+=`<td class="exc-date" rowspan="${rspan}">${s.date}</td>
           <td class="exc-equip" rowspan="${rspan}"><a href="#" onclick="showEquipTrend(${jsArg(s.equipment)});return false">${escHtml(s.equipment)}</a></td>
-          <td class="exc-unit" rowspan="${rspan}">${s.unit}</td>
-          <td class="exc-area" rowspan="${rspan}">${s.area}</td>
+          <td class="exc-unit" rowspan="${rspan}">${escHtml(s.unit)}</td>
+          <td class="exc-area" rowspan="${rspan}">${escHtml(s.area)}</td>
           <td rowspan="${rspan}" style="padding:0;border:1px solid #D9E1E8"><div class="exc-sev-block" style="background:${sevBlockColor[os]||sevBlockColor.NORMAL}">${os}</div></td>`;
       }
       // Point column — shown on every row
-      html+=`<td class="exc-val" style="font-weight:600;white-space:nowrap;min-width:80px">${ptEmoji} ${r.point||'—'}</td>`;
+      html+=`<td class="exc-val" style="font-weight:600;white-space:nowrap;min-width:80px">${ptEmoji} ${escHtml(r.point||'—')}</td>`;
       html+=paramKeys.map(k=>{
         const v=r[k];
         if(v===''||v===undefined||v===null) return '<td class="exc-val" style="color:var(--hint)">—</td>';
@@ -216,7 +216,7 @@ function renderExceptions() {
       if(ri===0){
         html+=`<td class="exc-recs" rowspan="${rspan}">${recsHtml}</td>`;
         html+=`<td rowspan="${rspan}" style="text-align:center;vertical-align:middle;min-width:110px;width:110px;border:1px solid #D9E1E8;white-space:normal;word-break:break-word">
-          ${currentDept ? `<span class="ss-dept-badge">${currentDept}</span>` : '<span style="color:var(--hint);font-size:11px">—</span>'}
+          ${currentDept ? `<span class="ss-dept-badge">${escHtml(currentDept)}</span>` : '<span style="color:var(--hint);font-size:11px">—</span>'}
         </td>`;
       }
       html+=`</tr>`;

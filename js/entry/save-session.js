@@ -38,6 +38,14 @@ async function saveSession() {
   });
   if (!readings.length) { alert('⚠️ No values entered. Please fill in at least one measurement point before saving.'); return; }
 
+  // ── ENTRY GUARDRAILS (entry-guardrails.js): impossible values and an unexplained severity override stop the save;
+  //    doubtful values / duplicates / missing points ask for a confirmation first ──
+  if (typeof egSaveGate === 'function') {
+    let proceed = true;
+    try { proceed = await egSaveGate(date, extra, isDecoupledMode()); } catch(err) { console.warn('Entry guardrails skipped:', err); }
+    if (!proceed) return;
+  }
+
   // ── DECOUPLED TRIAL DETECTION ──────────────────────────────────────────────
   let isDecoupled = isDecoupledMode();
 

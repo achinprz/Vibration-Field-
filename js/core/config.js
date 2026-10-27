@@ -12,6 +12,18 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Initialize Supabase client
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── NEW FEATURES START ON THIS DATE ─────────────────────────────────────────────────────────────────────────────────────
+// Not running / Standby, the Equipment Health Index, the "Worst Health" list and the health-based catch-up priority switch on for
+// everybody on this date (and the catch-up plan of any month starting on or after it uses the new rules). Before it, operators see
+// nothing different (admins can already look at the health score and the Worst Health list). Format YYYY-MM-DD.
+const FEATURES_FROM = '2026-11-01';
+
+// ── ADMIN 2-STEP SIGN-IN (authenticator app) ───────────────────────────────────────────────────────────────────────────
+// true  = an ADMIN login must also type the 6-digit code from Google Authenticator (needs a Supabase Auth user per admin, see supabase/ADMIN_2FA_SETUP.md).
+// false = admins sign in with the password only, as before. Emergency switch if the set-up goes wrong.
+const ADMIN_2FA = true;
+const ADMIN_2FA_EMAIL_DOMAIN = 'users.vibemon.app';   // the admin's Supabase Auth email is  <username>@<this>  (not a real mailbox)
+
 // Legacy GS stubs — kept so no other code breaks
 const GS_KEY = 'vibromon_gsurl';
 const GS_DEFAULT_URL = '';

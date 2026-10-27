@@ -1,0 +1,16 @@
+/* Admin 2-step sign-in (authenticator code) */
+.a2-bg { display: none; position: fixed; inset: 0; z-index: 12000; background: linear-gradient(160deg, #0f2744, #1D4E8A); align-items: center; justify-content: center; padding: 16px; overflow: auto; }
+.a2-bg.open { display: flex; }
+.a2-card { width: min(94vw, 420px); background: #fff; color: #111827; border-radius: 16px; padding: 24px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.a2-logo { font-weight: 800; color: #1D4E8A; font-size: 18px; margin-bottom: 4px; }
+.a2-card h2 { font-size: 18px; margin: 4px 0 10px; color: #111827 !important; }
+.a2-sub { font-size: 13px; color: #4B5563; line-height: 1.5; margin: 6px 0 12px; }
+.a2-card input[type=text] { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #CBD5E1; border-radius: 10px; font-size: 15px; background: #fff !important; color: #111827 !important; }
+.a2-card .a2-sub, .a2-card summary { color: #4B5563 !important; }
+.a2-code { text-align: center; letter-spacing: 8px; font-size: 24px !important; font-weight: 700; margin: 8px 0 4px; }
+.a2-btn { width: 100%; margin-top: 14px; padding: 12px; border: none; border-radius: 10px; background: #2563EB; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+.a2-btn:disabled { opacity: .6; cursor: wait; }
+.a2-link { display: block; margin: 12px auto 0; background: none; border: none; color: #6B7280; font-size: 13px; cursor: pointer; text-decoration: underline; }
+.a2-err { display: none; margin-top: 12px; padding: 9px 12px; border-radius: 8px; background: #FEE2E2; color: #991B1B; font-size: 13px; }
+.a2-qr { text-align: center; margin: 6px 0; } .a2-qr img { width: 190px; height: 190px; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 6px; }
+.a2-secret { display: block; word-break: break-all; margin-top: 6px; padding: 8px; background: #F3F4F6; border-radius: 8px; font-size: 13px; }

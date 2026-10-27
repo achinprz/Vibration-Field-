@@ -51,7 +51,8 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
 
   const eqObj = MASTER.find(e => e.name === equip) || { unit:'', area:'' };
 
-  trendTitle.textContent = `📈 Trend: ${equip}`;
+  // equipment name with its Equipment Health Index beside it — bold, colour-coded (equipment-health.js)
+  trendTitle.innerHTML = `📈 Trend: <b style="color:var(--text,#fff);font-weight:800">${escHtml(equip)}</b>` + (typeof ehiBadgeHtml === 'function' && (typeof fxEhiVisible !== 'function' || fxEhiVisible()) ? ehiBadgeHtml(equip, { big: true }) : '');
 
   // Short x-label
   const dateCounts = {};

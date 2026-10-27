@@ -8,7 +8,15 @@ window.onload=()=>{
   if (saved) {
     try {
       const a = JSON.parse(saved);
-      if (a && a.loggedIn && a.role !== 'viewer') { AUTH = a; applyAuth(); restored = true; }
+      if (a && a.loggedIn && a.role === 'admin' && _a2On()) {
+        // an admin comes back in only while a Supabase session that already passed the authenticator code is still alive
+        restored = true;
+        admin2faSessionOk(a.username).then(ok => {
+          if (ok) { AUTH = a; applyAuth(); }
+          else { try { localStorage.removeItem(AUTH_KEY); } catch(e){} openLoginScreen(); }
+        });
+      }
+      else if (a && a.loggedIn && a.role !== 'viewer') { AUTH = a; applyAuth(); restored = true; }
     } catch(e) {}
   }
   // If session not restored, try silent auto-login with saved credentials

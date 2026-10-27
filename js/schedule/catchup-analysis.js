@@ -28,7 +28,7 @@ function cuaItem(r, o) {
     it.status = o.k === 'regular' ? 'Read at its regular visit (not because of the catch-up)' : (own ? 'Completed' : 'Completed by another group');
   } else if (o.k === 'failed') { it.color = 'red'; it.seg = 'missed'; it.cat = 'missed'; it.status = 'Missed — still unread after the catch-up day'; }
   else if (o.k === 'pending') { it.color = 'blue'; it.seg = 'pending'; it.cat = 'pending'; it.status = 'Upcoming'; }
-  else { it.color = 'grey'; it.seg = ''; it.cat = 'cancelled'; it.status = 'Cancelled — the visit had already been completed'; }
+  else { it.color = 'grey'; it.seg = ''; it.cat = 'cancelled'; it.status = o.why === 'standby-limit' ? 'Stopped — still not running after ' + DY_NR_MAX + ' re-checks' : 'Cancelled — the visit had already been completed'; }
   return it;
 }
 

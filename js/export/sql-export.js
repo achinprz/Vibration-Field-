@@ -6,10 +6,7 @@ function initSQLAutoDownload() { /* removed */ }
 // ── SQL Import dropdown toggle ──────────────────────────────────────────────
 function toggleSqlImportMenu() { /* removed */ }
 
-// Close menu when clicking anywhere else
-document.addEventListener('click', function() {
-  if (menu) menu.style.display = 'none';
-});
+// (the old "close the import menu on any click" listener threw an error on every click — the menu no longer exists)
 
 // ── Utility: today's date as YYYY-MM-DD ────────────────────────────────────
 function _todayFmt() {
