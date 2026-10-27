@@ -89,7 +89,7 @@ function _extractSheetHead(originalSheetXml){
 }
 
 async function downloadSQLReadingsExcel() {
-  if (typeof JSZip === 'undefined') { alert('Zip engine still loading, please try again.'); return; }
+  if (typeof JSZip === 'undefined') { alert('The zip engine did not load. Refresh the page (pull down / Ctrl+F5) and try again.'); return; }
   // Use same History tab filters (date range, unit, area, user, search) as Excel/PDF exports
   const from=document.getElementById('h-from').value;
   const to=document.getElementById('h-to').value;
