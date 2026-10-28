@@ -121,6 +121,7 @@ async function pwmRender() {
       <input type="file" id="pwm-file" accept=".xlsm" class="pwm-in">
       <input type="password" id="pwm-rep-pass" class="pwm-in" placeholder="Current password" autocomplete="off">
       <button class="btn btn-primary" id="pwm-rep-btn" onclick="pwmReplace()">📤 Encrypt &amp; replace template</button></div>`;
+  if (typeof a2RenderCard === 'function') a2RenderCard();   // admin 2-step switch lives on this pane too
 }
 
 async function pwmChange() {

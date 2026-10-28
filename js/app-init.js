@@ -8,13 +8,11 @@ window.onload=()=>{
   if (saved) {
     try {
       const a = JSON.parse(saved);
-      if (a && a.loggedIn && a.role === 'admin' && _a2On()) {
-        // an admin comes back in only while a Supabase session that already passed the authenticator code is still alive
-        restored = true;
-        admin2faSessionOk(a.username).then(ok => {
-          if (ok) { AUTH = a; applyAuth(); }
-          else { try { localStorage.removeItem(AUTH_KEY); } catch(e){} openLoginScreen(); }
-        });
+      if (a && a.loggedIn && a.role === 'admin') {
+        // an admin always signs in again (password + authenticator code): drop any saved admin session
+        try { localStorage.removeItem(AUTH_KEY); } catch(e){}
+        try { const c = JSON.parse(localStorage.getItem(CREDS_KEY) || 'null'); if (c && String(c.u || '').toLowerCase() === String(a.username || '').toLowerCase()) localStorage.removeItem(CREDS_KEY); } catch(e){}
+        if (typeof admin2faSignOut === 'function') admin2faSignOut();
       }
       else if (a && a.loggedIn && a.role !== 'viewer') { AUTH = a; applyAuth(); restored = true; }
     } catch(e) {}

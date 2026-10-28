@@ -21,6 +21,18 @@ function _autoFitColumns(ws, { min = 8, max = 60, startRow = 1 } = {}) {
   });
 }
 
+// Shown when an Excel / PDF export finds nothing: says how many readings this device holds and which filter removed them
+function exportEmptyMessage(f) {
+  const inRange = READINGS.filter(r => (!f.from || r.date >= f.from) && (!f.to || r.date <= f.to)).length;
+  const on = [];
+  if (f.unit) on.push('Unit = ' + f.unit); if (f.area) on.push('Area = ' + f.area); if (f.sev) on.push('Severity = ' + f.sev);
+  if (f.user) on.push('User = ' + f.user); if (f.q) on.push('Search = "' + f.q + '"');
+  let m = 'No data in the selected range.\n\nReadings loaded on this device: ' + READINGS.length + '\nBetween ' + (f.from || 'start') + ' and ' + (f.to || 'today') + ': ' + inRange;
+  if (on.length) m += '\nFilters set: ' + on.join(', ') + '\n(set them to "All" / clear them and try again)';
+  if (!READINGS.length) m += '\n\nNo readings have loaded yet. Press Refresh, wait for the count to appear, then try again.';
+  return m;
+}
+
 // ── EXPORT HISTORY: grouped Excel with merged cells ──────────────────────
 async function exportHistoryExcel() {
   const from=document.getElementById('h-from').value;
@@ -49,7 +61,7 @@ async function exportHistoryExcel() {
   const sessions=Object.values(sessionMap).sort((a,b)=>b.date.localeCompare(a.date));
   const filtered=sev?sessions.filter(s=>worstSev(s.rows.map(r=>r.severity))===sev):sessions;
 
-  if(!filtered.length){ alert('No data in the selected range.'); return; }
+  if(!filtered.length){ alert(exportEmptyMessage({from,to,unit,area,sev,q,user})); return; }
 
   // PERF: O(1) equipment lookups instead of MASTER.find() per session (export is uncapped,
   // unlike the on-screen History view, so this can run over thousands of sessions).

@@ -94,7 +94,7 @@ function exportHistoryPDF(){
   });
   let sessions=Object.values(sessionMap).sort((a,b)=>b.date.localeCompare(a.date));
   if(sev) sessions=sessions.filter(s=>worstSev(s.rows.map(r=>r.severity))===sev);
-  if(!sessions.length){ alert('No data in the selected range.'); return; }
+  if(!sessions.length){ alert(exportEmptyMessage({from,to,unit,area,sev,q,user})); return; }
 
   const doc = new JsPDF({orientation:'landscape',unit:'mm',format:'a4'});
   const filters = `Period: ${from||'—'} to ${to||'—'}  |  Unit: ${unit||'All'}  |  Area: ${area||'All'}  |  User: ${user||'All'}  |  Severity: ${sev||'All'}`;

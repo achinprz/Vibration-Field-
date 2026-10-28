@@ -11,19 +11,8 @@ function openEditReport(date, equipment, reportId) {
     ? READINGS.filter(r => r.reportId === reportId)
     : READINGS.filter(r => r.date === date && r.equipment === equipment);
   if (!rows.length) { alert('Session not found in memory. Please sync from Supabase first.'); return; }
-  // Check permission — editor can only edit their own TODAY's readings
-  if (AUTH.role === 'editor') {
-    const sessionInspector = rows[0].inspector || '';
-    const sessionUsername   = rows[0].username  || '';
-    const isOwner = sessionInspector === AUTH.displayName || sessionUsername === AUTH.username;
-    if (!isOwner) {
-      showToast('You can only edit your own reports.', 'red'); return;
-    }
-    const sessionDate = (rows[0].date || '').slice(0, 10);
-    if (sessionDate !== _todayFmt()) {
-      showToast('Field Engineers can only edit today\'s readings. Contact Admin to edit older records.', 'red'); return;
-    }
-  }
+  // Permission — admin, or the owner's own login until 08:00 the next morning (see edit-window.js)
+  if (!canEditSession(rows)) { showToast(editDeniedText(rows), 'red'); return; }
   editSession = { date, equipment, rows };
   editReadings = {};
   rows.forEach(r => {
@@ -132,6 +121,7 @@ function onEditDecoupledToggle(checked) {
 async function saveEditReport() {
   if (!editSession) return;
   const { date: origDate, equipment, rows } = editSession;
+  if (!canEditSession(rows)) { showToast(editDeniedText(rows), 'red'); closeEditReport(); return; }   // the window may have closed while the form was open
   const recsField = document.getElementById('edit-recs-field');
   const remarksField = document.getElementById('edit-remarks-field');
   const sevField = document.getElementById('edit-sev-override');

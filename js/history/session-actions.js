@@ -6,11 +6,8 @@ async function toggleHistoryDecoupled(date, equipment, reportId, setDecoupled) {
     ? READINGS.filter(r => r.reportId === reportId)
     : READINGS.filter(r => r.date === date && r.equipment === equipment);
   if (!rows.length) { showToast('Session not found.', 'red'); return; }
-  // Permission check: editor can only toggle their own
-  if (AUTH.role === 'editor') {
-    const isOwner = (rows[0].inspector||'') === AUTH.displayName || (rows[0].username||'') === AUTH.username;
-    if (!isOwner) { showToast('You can only change your own reports.', 'red'); return; }
-  }
+  // Permission check: admin, or the owner's own login until 08:00 next morning
+  if (!canEditSession(rows)) { showToast(editDeniedText(rows), 'red'); renderHistory(); return; }
   const decRemark = 'Decoupled Trial';
   rows.forEach(r => {
     r.isDecoupled = setDecoupled;
@@ -45,12 +42,14 @@ async function toggleHistoryDecoupled(date, equipment, reportId, setDecoupled) {
   showToast(setDecoupled ? '🔗 Marked as Decoupled Trial — severity recalculated' : '✅ Decoupled flag removed — severity restored', 'green');
 }
 
-// ======= DELETE SESSION READINGS (ADMIN) =======
+// ======= DELETE SESSION READINGS (admin; field engineers only their own, until 08:00 next morning) =======
 async function deleteSessionReadings(date, equipment, reportId) {
-  if (AUTH.role !== 'admin') { alert('Admin only.'); return; }
-  const cnt = reportId
-    ? READINGS.filter(r => r.reportId === reportId).length
-    : READINGS.filter(r => r.date === date && r.equipment === equipment).length;
+  const _rows = reportId
+    ? READINGS.filter(r => r.reportId === reportId)
+    : READINGS.filter(r => r.date === date && r.equipment === equipment);
+  if (!_rows.length) { showToast('Session not found.', 'red'); return; }
+  if (!canEditSession(_rows)) { alert(AUTH.role === 'viewer' ? 'Not allowed.' : editDeniedText(_rows)); return; }
+  const cnt = _rows.length;
   if (!confirm(`Delete ALL ${cnt} point readings for:\n\n${equipment}\nDate: ${date}\n\nThis will permanently delete from Supabase too. Cannot be undone.`)) return;
 
   // 1. Capture reportId BEFORE removing from memory

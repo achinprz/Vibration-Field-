@@ -14,3 +14,4 @@
 .a2-err { display: none; margin-top: 12px; padding: 9px 12px; border-radius: 8px; background: #FEE2E2; color: #991B1B; font-size: 13px; }
 .a2-qr { text-align: center; margin: 6px 0; } .a2-qr img { width: 190px; height: 190px; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 6px; }
 .a2-secret { display: block; word-break: break-all; margin-top: 6px; padding: 8px; background: #F3F4F6; border-radius: 8px; font-size: 13px; }
+.idle-warn { position: fixed; left: 0; right: 0; top: 0; z-index: 13000; background: #B91C1C; color: #fff; text-align: center; padding: 10px 14px; font-weight: 700; font-size: 14px; }

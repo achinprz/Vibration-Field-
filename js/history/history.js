@@ -7,6 +7,7 @@ function updateHistorySeverity(date, equipment, newSev, sessionKey) {
   if (!newSev) return; // no-op if "Auto" selected
   // sessionKey is passed from the select's onchange — it's the reportId or date||equipment
   const keyToUse = sessionKey || (date + '||' + equipment);
+  { const _own = rowsOfSessionKey(keyToUse); if (!canEditSession(_own)) { showToast(editDeniedText(_own), 'red'); renderHistory(); return; } }
   // Update all point rows for this session in READINGS memory
   const reportId = sessionKey || (READINGS.find(r => r.date === date && r.equipment === equipment) || {}).reportId || null;
   READINGS.forEach(r => {
@@ -38,6 +39,7 @@ function updateHistorySeverity(date, equipment, newSev, sessionKey) {
 function updateHistoryDept(date, equipment, newDept, sessionKey) {
   if (!newDept) return; // no-op on blank
   const keyToUse = sessionKey || (date + '||' + equipment);
+  { const _own = rowsOfSessionKey(keyToUse); if (!canEditSession(_own)) { showToast(editDeniedText(_own), 'red'); renderHistory(); return; } }
   // Resolve reportId from sessionKey or first matching row
   const reportId = (READINGS.find(r => {
     const rKey = r.reportId ? r.reportId : (r.date + '||' + r.equipment);
@@ -199,7 +201,7 @@ function renderHistory() {
           <span style="font-size:12px;color:var(--muted)">${escHtml(session.unit)} · ${escHtml(session.area)}</span>
           <span data-session-badge="${sessionKey}">${badgeHtml(os)}</span>
           ${hasMultiDate ? `<button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="showEquipTrend(${jsArg(session.equipment)})">📈 Trend</button>` : ''}
-          ${(AUTH.role==='admin'||(AUTH.role==='editor'&&((session.inspector||'')=== AUTH.displayName||(session.rows[0]&&session.rows[0].username===AUTH.username)))) ? `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:${session.isDecoupled?'#FEF3C7':'var(--bg)'};border:1px solid ${session.isDecoupled?'#D97706':'var(--border2)'};border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E" title="Toggle Decoupled Trial status"><input type="checkbox" ${session.isDecoupled?'checked':''} onchange="toggleHistoryDecoupled(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')},this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#D97706;margin:0">Decoupled</label>` : (session.isDecoupled ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#FEF3C7;border:1px solid #D97706;border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E">🔗 Decoupled</span>` : '')}
+          ${canEditSession(session.rows) ? `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:${session.isDecoupled?'#FEF3C7':'var(--bg)'};border:1px solid ${session.isDecoupled?'#D97706':'var(--border2)'};border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E" title="Toggle Decoupled Trial status"><input type="checkbox" ${session.isDecoupled?'checked':''} onchange="toggleHistoryDecoupled(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')},this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#D97706;margin:0">Decoupled</label>` : (session.isDecoupled ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#FEF3C7;border:1px solid #D97706;border-radius:var(--radius);padding:3px 8px;font-size:11px;font-weight:600;color:#92400E">🔗 Decoupled</span>` : '')}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--muted)">📅 ${fmtDateDisplay(session.date)}</span>
@@ -207,7 +209,7 @@ function renderHistory() {
           <span style="font-size:11px;color:var(--muted)">👤 ${escHtml(session.inspector || '—')}</span>
           <div title="Overall equipment status" style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px">
             <span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">STATUS</span>
-            ${(AUTH.role === 'viewer' || (AUTH.role === 'editor' && session.date !== _todayFmt()))
+            ${!canEditSession(session.rows)
               ? `<span style="font-size:11px;font-weight:700;padding:1px 2px">${badgeHtml(os)}</span>`
               : `<select onchange="updateHistorySeverity(${jsArg(session.date)},${jsArg(session.equipment)},this.value,${jsArg(sessionKey)})"
               style="font-size:11px;font-weight:700;border:none;background:transparent;color:var(--text);padding:1px 2px;cursor:pointer;max-width:140px">
@@ -218,7 +220,7 @@ function renderHistory() {
               <option value="CRITICAL" ${os==='CRITICAL'?'selected':''} style="color:#DC2626">🚨 CRITICAL</option>
             </select>`}
           </div>
-          ${(AUTH.role === 'admin' || (AUTH.role === 'editor' && session.date === _todayFmt())) ? `
+          ${canEditSession(session.rows) ? `
           <div title="Responsible Department" style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px">
             <span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">DEPT</span>
             <select onchange="updateHistoryDept(${jsArg(session.date)},${jsArg(session.equipment)},this.value,${jsArg(sessionKey)})"
@@ -227,8 +229,9 @@ function renderHistory() {
               ${(typeof DEPTS_LIST!=='undefined'?DEPTS_LIST:['AHD','CHP','EMD','OFS','BMD','TMD','C&I','TAD']).map(d=>`<option value="${d}" ${sessionDept===d?'selected':''}>${d}</option>`).join('')}
             </select>
           </div>` : (sessionDept ? `<div style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:3px 7px"><span style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em">DEPT</span><span style="font-size:11px;font-weight:700" data-session-dept="${escHtml(sessionKey)}">${escHtml(sessionDept)}</span></div>` : '')}
-          ${(AUTH.role==='admin'||(AUTH.role==='editor'&&((session.inspector||'')=== AUTH.displayName||(session.rows[0]&&session.rows[0].username===AUTH.username))&&session.date===_todayFmt())) ? `<button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="openEditReport(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">✏️ Edit</button>` : ''}
-          ${AUTH.role==='admin' ? `<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteSessionReadings(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">🗑 Delete</button>` : ''}
+          ${editWindowNote(session.rows) ? `<span style="font-size:10.5px;color:var(--muted)" title="After this time the readings go to the office SQL server and cannot be changed">✏️ editable until ${editWindowNote(session.rows)}</span>` : ''}
+          ${canEditSession(session.rows) ? `<button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="openEditReport(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">✏️ Edit</button>` : ''}
+          ${canEditSession(session.rows) ? `<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteSessionReadings(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">🗑 Delete</button>` : ''}
           ${AUTH.role!=='viewer' ? `<button class="btn btn-sm btn-wa" onclick="openWASessionModal(${jsArg(session.date)},${jsArg(session.equipment)},${jsArg(session.reportId||'')})">📲 WhatsApp</button>` : ''}
         </div>
       </div>

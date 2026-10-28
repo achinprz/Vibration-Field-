@@ -67,7 +67,7 @@ async function _tryOfflineLogin(uname, pass) {
   const cache = _loadUsersCache();
   const entry = cache[uname.toLowerCase()];
   if (!entry) return null;
-  if (_a2On() && entry.role === 'admin') return null;   // admin sign-in always needs internet (authenticator step)
+  if (entry.role === 'admin') return null;   // an admin always signs in online
   try {
     const hash = await _sha256(pass);
     if (hash === entry.hash) {
@@ -155,7 +155,7 @@ async function doLogin() {
       const u = result.user;
       const roleMap = { 'ADMIN': 'admin', 'EDITOR': 'editor', 'VIEWER': 'viewer' };
       const isAdmin = roleMap[(u.role||'').toUpperCase()] === 'admin';
-      if (isAdmin && _a2On()) {
+      if (isAdmin && await a2Required()) {
         const tf = await admin2faRun(u.username, pass);
         document.getElementById('login-pass').value = '';
         if (!tf.ok) {
@@ -170,8 +170,8 @@ async function doLogin() {
         displayName: u.name || u.username,
         role: roleMap[(u.role||'').toUpperCase()] || 'viewer'
       };
-      try { localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e){}
-      if (isAdmin && _a2On()) {
+      if (!isAdmin) { try { localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e){} }   // an admin signs in again every time
+      if (isAdmin) {
         // an admin's password is never kept on the phone (neither for auto-login nor for offline sign-in)
         try { localStorage.removeItem(CREDS_KEY); } catch(ec){}
         try { const c = _loadUsersCache(); delete c[u.username.toLowerCase()]; localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(c)); } catch(ec){}
@@ -198,7 +198,7 @@ async function doLogin() {
         return;
       } else {
         const _ce = _loadUsersCache()[uname.toLowerCase()];
-        errEl.textContent = (_a2On() && _ce && _ce.role === 'admin') ? '📵 Admin sign-in needs internet (2-step check).' : '📵 Offline & no cached login for this user. Please login online at least once first.';
+        errEl.textContent = (_ce && _ce.role === 'admin') ? '📵 Admin sign-in needs internet.' : '📵 Offline & no cached login for this user. Please login online at least once first.';
         errEl.classList.add('show');
       }
     } else {
@@ -210,14 +210,18 @@ async function doLogin() {
   }
 }
 
-function doLogout() {
+function doLogout(message) {
+  if (typeof idleStop === 'function') idleStop();
   if (typeof admin2faSignOut === 'function' && AUTH.role === 'admin') admin2faSignOut();
   // Clear saved credentials and session — but keep USERS_CACHE_KEY so offline login still works
   try { localStorage.removeItem(CREDS_KEY); } catch(e){}
   try { localStorage.removeItem(AUTH_KEY); } catch(e){}
   // Note: USERS_CACHE_KEY is intentionally kept — allows offline login after logout
   AUTH = { loggedIn: false, username: '', displayName: '', role: 'viewer' };
+  document.body.classList.remove('role-admin','role-editor'); document.body.classList.add('role-viewer');
+  try { closeAdminPanel(); } catch(e){}
   openLoginScreen();
+  if (message) { const er = document.getElementById('login-err'); if (er) { er.textContent = '⏱ ' + message; er.classList.add('show'); } }
 }
 
 function applyAuth() {
@@ -259,6 +263,7 @@ function applyAuth() {
     const cur2 = document.querySelector('.screen.active');
     if (!cur2 || cur2.id === 'tab-entry') showTab('history');
   }
+  if (AUTH.role === 'admin' && typeof idleStart === 'function') idleStart(); else if (typeof idleStop === 'function') idleStop();   // admin: signed out after 15 idle minutes
   loadData();
   populateFilters();
   filterEntryList();
