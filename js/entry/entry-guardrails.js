@@ -1,7 +1,7 @@
 /* VibeMon — entry guardrails: catch typing slips and doubtful entries BEFORE a reading is saved.
    Live hint under each value (step 2), a "Checks" box on the review step (step 4), and a final check when Save is pressed.
-   Nothing here changes a reading — it only warns (OK = save anyway, Cancel = go back) or, for impossible values and an
-   unexplained severity override, stops the save until the engineer fixes it. */
+   Nothing here changes a reading — it only warns (OK = save anyway, Cancel = go back) or, for impossible values
+   (not a number, negative, absurdly large), stops the save until the engineer fixes it. Remarks are never required. */
 
 const EG = {
   // Above this a value is almost certainly a slipped decimal: the engineer must confirm it.
@@ -44,7 +44,7 @@ function egCheckValue(equip, point, key, raw, decoupled) {
   if (v < 0) { flags.push({ level: 'block', text: 'a vibration reading cannot be negative' }); return flags; }
   if (v > EG.IMPOSSIBLE[t]) { flags.push({ level: 'block', text: `${egFmt(v)} ${u} is not a possible reading — check the decimal point` }); return flags; }
   if (v > EG.PLAUSIBLE[t]) flags.push({ level: 'warn', text: `${egFmt(v)} ${u} is far above any normal range — check the decimal point` });
-  if (v === 0) flags.push({ level: 'warn', text: 'zero reading — if the machine was stopped or the point not reachable, say so in Remarks' });
+  if (v === 0) flags.push({ level: 'warn', text: 'zero reading — is the point reachable / the machine running?' });
 
   const h = egHistory(equip, point, key, decoupled);
   if (h.length) {
@@ -119,15 +119,7 @@ function egCheckAll(isDecoupled, opts) {
   }
   const partial = rows.map(row => ({ point: row.point, miss: e.params.filter(p => row.values[p.replace(/\s/g, '_')] === '') })).filter(x => x.miss.length && x.miss.length < e.params.length);
   if (partial.length) res.warn.push('Blank values: ' + partial.map(x => `${x.point} (${x.miss.join(', ')})`).join('; '));
-  // changing the severity the readings give needs a reason
-  const ov = document.getElementById('s4-sev-override'), badge = document.getElementById('s4-overall-badge');
-  if (ov && ov.value && badge && !window._aiAcceptedForSession) {
-    const auto = badge.getAttribute('data-auto') || '';
-    const remarks = String(opts.remarks != null ? opts.remarks : (document.getElementById('extra-remarks') || {}).value || '').replace(/Decoupled Trial/gi, '').trim();
-    if (auto && ov.value !== auto && remarks.length < 5) {
-      res.block.push(`You changed the severity from ${auto} to ${ov.value} — add a short reason in Remarks (for example "noise normal, sensor loose") before saving`);
-    }
-  }
+  // (no remark is ever required — changing the severity or leaving Remarks empty never stops or slows a save)
   return res;
 }
 

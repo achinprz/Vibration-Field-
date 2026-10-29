@@ -23,13 +23,15 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" crossorigin="anonymous"></script>
+<!-- All libraries are served from this app itself (js/vendor/) — nothing is fetched from another website, so a plant network that blocks
+     a CDN cannot break sign-in, Excel or PDF. Each file is byte-identical to the published release named below. -->
+<script src="js/vendor/supabase.min.js?v=2.118.0"></script>
+<script src="js/vendor/xlsx.full.min.js?v=0.18.5"></script>
+<script src="js/vendor/exceljs.min.js?v=4.4.0"></script>
 <script src="js/vendor/jszip.min.js?v=3.10.1"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
+<script src="js/vendor/jspdf.umd.min.js?v=2.5.1"></script>
+<script src="js/vendor/jspdf.plugin.autotable.min.js?v=3.8.2"></script>
+<script src="js/vendor/pptxgen.bundle.js?v=3.12.0"></script>
 
 <script src="js/boot/datetime.js?v=20260922"></script>
 <script src="js/boot/theme.js?v=20260922"></script>
@@ -808,7 +810,7 @@ if ('serviceWorker' in navigator) {
 <script src="js/entry/entry-wizard.js?v=20261030"></script>
 <script src="js/ai/ai-predict.js?v=20260926d"></script>
 <script src="js/offline/offline-queue.js?v=20261028"></script>
-<script src="js/entry/entry-guardrails.js?v=20261026"></script>
+<script src="js/entry/entry-guardrails.js?v=20261106"></script>
 <script src="js/entry/not-running.js?v=20261031"></script>
 <script src="js/entry/save-session.js?v=20261026"></script>
 <script src="js/history/edit-window.js?v=20261105"></script>
