@@ -3,10 +3,13 @@
 // ── TREND MODAL: full equipment history across all dates ──────────────────
 // Persists the user's chosen view mode across openings
 let _trendViewMode = localStorage.getItem('vibemon-trend-view') || 'param'; // 'param' | 'point'
+// Coupled vs decoupled-trial readings: 'split' (separate plots, default) | 'coupled' | 'decoupled' | 'all' (one combined plot, the old behaviour)
+let _trendCond = localStorage.getItem('vibemon-trend-cond') || 'split';
 
-function showEquipTrend(equip, forceAutoscale = true, viewMode) {
+function showEquipTrend(equip, forceAutoscale = true, viewMode, condMode) {
   equip = String(equip ?? '').trim();
   if (viewMode !== undefined) { _trendViewMode = viewMode; localStorage.setItem('vibemon-trend-view', viewMode); }
+  if (condMode !== undefined) { _trendCond = condMode; try { localStorage.setItem('vibemon-trend-cond', condMode); } catch (e) {} }
   const trendModal = document.getElementById('trend-modal');
   const trendTitle = document.getElementById('trend-title');
   const trendBody  = document.getElementById('trend-body');
@@ -29,8 +32,13 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
     if (!sessionMap[key]) sessionMap[key] = { date: r.date, key, inspector: r.inspector||'', rows: [] };
     sessionMap[key].rows.push(r);
   });
-  let sessions = Object.values(sessionMap).sort((a,b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
-  if (sessions.length > 10) sessions = sessions.slice(-10);
+  const allSessionsFull = Object.values(sessionMap).sort((a,b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
+  // a decoupled trial is a different running condition: its readings sit on a different level, so they are plotted apart from the coupled ones
+  const rowDec = r => !!(r.isDecoupled || (r.remarks && r.remarks.includes('Decoupled Trial')));
+  const isDecSession = s => s.rows.some(rowDec);
+  const decSessions = allSessionsFull.filter(isDecSession), coupledSessions = allSessionsFull.filter(s => !isDecSession(s));
+  const hasDec = decSessions.length > 0;
+  let sessions = allSessionsFull.slice(-10);   // re-pointed per plot group below
 
   const points = [...new Set(allRows.map(r => r.point).filter(Boolean))];
   const velParams  = ['H_Vel','V_Vel','A_Vel'];
@@ -52,18 +60,19 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
   const eqObj = MASTER.find(e => e.name === equip) || { unit:'', area:'' };
 
   // equipment name with its Equipment Health Index beside it — bold, colour-coded (equipment-health.js)
-  trendTitle.innerHTML = `📈 Trend: <b style="color:var(--text,#fff);font-weight:800">${escHtml(equip)}</b>` + (typeof ehiBadgeHtml === 'function' && (typeof fxEhiVisible !== 'function' || fxEhiVisible()) ? ehiBadgeHtml(equip, { big: true }) : '');
+  trendTitle.innerHTML = `📈 Trend: <b style="color:#f1f5f9;font-weight:800">${escHtml(equip)}</b>` + (typeof ehiBadgeHtml === 'function' && (typeof fxEhiVisible !== 'function' || fxEhiVisible()) ? ehiBadgeHtml(equip, { big: true }) : '');
 
   // Short x-label
-  const dateCounts = {};
-  sessions.forEach(s => { dateCounts[s.date] = (dateCounts[s.date]||0)+1; });
-  const dateIdx = {};
-  sessions.forEach(s => { dateIdx[s.date] = (dateIdx[s.date]||0); });
-  const xLabels = sessions.map(s => {
-    const mm_dd = s.date.slice(5).replace('-','/');
-    if (dateCounts[s.date] > 1) { dateIdx[s.date]++; return `${mm_dd}(${dateIdx[s.date]})`; }
-    return mm_dd;
-  });
+  function labelsFor(sess) {
+    const dateCounts = {}, dateIdx = {};
+    sess.forEach(s => { dateCounts[s.date] = (dateCounts[s.date]||0)+1; dateIdx[s.date] = 0; });
+    return sess.map(s => {
+      const mm_dd = s.date.slice(5).replace('-','/');
+      if (dateCounts[s.date] > 1) { dateIdx[s.date]++; return `${mm_dd}(${dateIdx[s.date]})`; }
+      return mm_dd;
+    });
+  }
+  let xLabels = labelsFor(sessions);
 
   // ── Shared chart helpers ─────────────────────────────────────────────────
   function smoothPath(pts) {
@@ -247,6 +256,9 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
     </button>
   </div>`;
 
+  const condBtn = (k, label, title) => `<button data-trendcond="${k}" title="${title}" onclick="_trendSwitchCond(this)" style="padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;transition:.15s;background:${_trendCond===k?'#1D4E8A':'transparent'};color:${_trendCond===k?'#fff':'#64748b'}">${label}</button>`;
+  const condToggle = hasDec ? `<div style="display:inline-flex;align-items:center;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:3px;gap:2px">${condBtn('split','Separate','Coupled and decoupled plotted apart')}${condBtn('coupled','Coupled ('+coupledSessions.length+')','Normal running only')}${condBtn('decoupled','Decoupled ('+decSessions.length+')','Decoupled trial only')}${condBtn('all','Combined','Everything on one plot')}</div>` : '';
+
   let html = `<div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <div style="font-size:12px;color:var(--muted)">${escHtml(eqObj.unit)} · ${escHtml(eqObj.area)}</div>
     <span style="font-size:11px;background:var(--blue-light);color:var(--blue-text);padding:2px 8px;border-radius:8px;font-weight:600">${sessions.length} session${sessions.length!==1?'s':''}</span>
@@ -255,12 +267,15 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
     <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       ${autoscaleChk}
       ${modeToggle}
+      ${condToggle}
     </div>
   </div>`;
 
   // ════════════════════════════════════════════════════════════════
   // MODE 1: By Parameter (existing behaviour)
   // ════════════════════════════════════════════════════════════════
+  function buildCharts() {
+  let html = '';
   if (_trendViewMode === 'param') {
     let chartsRendered = 0;
     allParams.forEach(param => {
@@ -371,15 +386,34 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
     html += '</div>';
     if (!ptRendered) html += `<div class="alert-box alert-info">No numerical readings found for this equipment.</div>`;
   }
+  return html;
+  }
+
+  // ── plot groups: separate coupled / decoupled-trial plots (or one combined plot) ──
+  const effCond = hasDec ? _trendCond : 'all';
+  const groups = [];
+  if (effCond === 'all') groups.push({ title: '', sess: allSessionsFull.slice(-10) });
+  else {
+    if (effCond === 'split' || effCond === 'coupled')   groups.push({ title: '🔵 Coupled — normal running', color: '#1D4E8A', bg: '#E6F1FB', sess: coupledSessions.slice(-10), what: 'coupled' });
+    if (effCond === 'split' || effCond === 'decoupled') groups.push({ title: '🔗 Decoupled trial', color: '#92400E', bg: '#FEF3C7', sess: decSessions.slice(-10), what: 'decoupled-trial' });
+  }
+  groups.forEach(g => {
+    if (g.title) html += `<div style="margin:6px 0 10px;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;color:${g.color};background:${g.bg}">${g.title} <span style="font-weight:500;opacity:.8">· ${g.sess.length} session${g.sess.length!==1?'s':''} plotted</span></div>`;
+    if (!g.sess.length) { if (effCond !== 'split') html += `<div class="alert-box alert-info">No ${g.what} readings for this equipment.</div>`; return; }
+    sessions = g.sess; xLabels = labelsFor(sessions);
+    html += buildCharts();
+  });
 
   // ── Summary table (both modes) ───────────────────────────────────────────
-  html += `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
-    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px">Latest readings by point</div>
+  const latestTable = (rows, title) => {
+    const pts = [...new Set(rows.map(r => r.point).filter(Boolean))];
+    return `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px">${title}</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Point</th><th>Date</th><th>H Vel mm/s</th><th>V Vel mm/s</th><th>A Vel mm/s</th><th>Acc g</th><th>Severity</th></tr></thead>
       <tbody>
-        ${points.map(pt => {
-          const ptRows = allRows.filter(r => r.point === pt);
+        ${pts.map(pt => {
+          const ptRows = rows.filter(r => r.point === pt);
           const latest = ptRows.sort((a,b) => b.date.localeCompare(a.date))[0];
           if (!latest) return '';
           return `<tr>
@@ -392,6 +426,12 @@ function showEquipTrend(equip, forceAutoscale = true, viewMode) {
       </tbody>
     </table></div>
   </div>`;
+  };
+  if (effCond === 'all') html += latestTable(allRows, 'Latest readings by point');
+  else {
+    if (effCond === 'split' || effCond === 'coupled')   { const r = allRows.filter(x => !rowDec(x)); if (r.length) html += latestTable(r, 'Latest readings by point — coupled'); }
+    if (effCond === 'split' || effCond === 'decoupled') { const r = allRows.filter(rowDec);         if (r.length) html += latestTable(r, 'Latest readings by point — decoupled trial'); }
+  }
 
   trendBody.innerHTML = html;
   trendModal.classList.add('open');
@@ -443,4 +483,12 @@ function _trendSwitchMode(btn) {
   const autoscaleChk = document.getElementById('trend-autoscale-chk');
   const autoscale = autoscaleChk ? autoscaleChk.checked : true;
   showEquipTrend(equip, autoscale, mode);
+}
+
+// Coupled / decoupled-trial switch (Separate | Coupled | Decoupled | Combined)
+function _trendSwitchCond(btn) {
+  const cond = btn.getAttribute('data-trendcond');
+  const equip = window._trendToggleEquip || '';
+  const autoscaleChk = document.getElementById('trend-autoscale-chk');
+  showEquipTrend(equip, autoscaleChk ? autoscaleChk.checked : true, undefined, cond);
 }

@@ -86,14 +86,14 @@ function ehiPriority(equip) { const i = ehiFor(equip); return (i && i.score != n
 function ehiBadgeHtml(equip, opts) {
   opts = opts || {};
   const i = ehiFor(equip);
-  const b = i && i.score != null ? { bg: i.bg, fg: i.fg, label: i.label } : EHI.NONE;
-  const arrow = i && i.trend === 'down' ? ' ↓' : i && i.trend === 'up' ? ' ↑' : '';
-  const txt = i && i.score != null ? `🩺 ${i.score}${arrow}` : '🩺 —';
+  // Same look as the office dashboard's pill ("Health Index: 83%"): outlined, tinted, coloured by this app's own bands (80 / 60 / 40).
+  const bandKey = i && i.score != null ? i.band : 'none';
+  const num = i && i.score != null ? i.score + '%' : '—';
+  const txt = opts.label === false ? num : 'Health Index: ' + num;   // the Worst Health table has its own "Health" column heading
   const tip = i && i.score != null
     ? `Equipment Health Index ${i.score}/100 — ${i.label}. Built from the last ${Math.min(i.n, EHI.N_MAX)} inspection sessions; latest ${i.latestSev} on ${i.latestDate}.${i.trend === 'down' ? ' Getting worse.' : i.trend === 'up' ? ' Improving.' : ''}`
     : `Equipment Health Index needs at least ${EHI.N_MIN} inspection sessions${i ? ` (this machine has ${i.n})` : ''}.`;
-  const suffix = opts.label === false ? '' : ' · ' + escHtml(i && i.score != null ? i.label : EHI.NONE.label);
-  return `<span class="ehi-badge${opts.big ? ' ehi-big' : ''}" style="background:${b.bg};color:${b.fg}" title="${escHtml(tip)}">${txt}${suffix}</span>`;
+  return `<span class="ehi-badge ehi-b-${bandKey}${opts.big ? ' ehi-big' : ''}" title="${escHtml(tip)}">${txt}</span>`;
 }
 
 /* ───────── "Worst Health" popup (History tab) ───────── */

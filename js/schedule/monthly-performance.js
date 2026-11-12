@@ -94,8 +94,72 @@ function dsLoadPerf(){
 function dsRenderPerf(){
   const team = dsCurrentTeam(); if(!team) return;
   try { dsRenderTotalAllGroups(); } catch(e){ console.error('dsRenderTotalAllGroups failed:', e); const el=document.getElementById('ds-perf-total'); if(el) el.innerHTML = '<div style="color:var(--red);font-size:12px">Could not load totals — '+(e&&e.message?e.message:'error')+'</div>'; }
+  try { dsRenderDailyBars(); } catch(e){ console.error('dsRenderDailyBars failed:', e); }
   try { dsRenderCompare(); } catch(e){ console.error('dsRenderCompare failed:', e); }
   try { dsRenderCompareMonthwise(); } catch(e){ console.error('dsRenderCompareMonthwise failed:', e); }
+}
+
+/* === Admin-only: equipment actually read each day, one bar chart per group, with a trend line (viewed month) ===
+   Bars = DISTINCT equipment with a real reading that day. "Not running / Standby" outcomes are not readings
+   (they live in equipment_status_log, not in READINGS), so they are never counted here. */
+function dsRenderDailyBars(){
+  const host = document.getElementById('ds-perf-daily'); if(!host) return;
+  if(!(AUTH && AUTH.role==='admin')){ host.innerHTML=''; host.style.display='none'; return; }
+  host.style.display = '';
+  const y = DS_VIEW.y, m = DS_VIEW.m, dim = new Date(y, m+1, 0).getDate();
+  const mk = `${y}-${String(m+1).padStart(2,'0')}`;
+  const teams = Object.keys(VIBE_SCHEDULE);
+  const palette = { 'Precise': ['#3b82f6','#1d4ed8'], 'CB': ['#f59e0b','#b45309'], 'CBA': ['#10b981','#047857'] };
+  const fallback = [['#8b5cf6','#6d28d9'], ['#ef4444','#b91c1c'], ['#14b8a6','#0f766e']];
+  const colorsOf = (t, i) => palette[t] || fallback[i % fallback.length];
+  const perDay = {}; teams.forEach(t => { perDay[t] = Array.from({length: dim}, () => new Set()); });
+  (dsReadingsArr()||[]).forEach(r => {
+    if(!r.equipment || !r.date || r.date.slice(0,7) !== mk) return;
+    const d = parseInt(r.date.slice(8,10), 10); if(!(d >= 1 && d <= dim)) return;
+    const eq = normalizeEquipName(r.equipment);
+    teams.forEach(t => { if(userBelongsToTeam(r, t)) perDay[t][d-1].add(eq); });
+  });
+  const counts = {}; let maxV = 0;
+  teams.forEach(t => { counts[t] = perDay[t].map(s => s.size); counts[t].forEach(v => { if(v > maxV) maxV = v; }); });
+  const mn = new Date(y, m, 1).toLocaleDateString(undefined, {month:'long', year:'numeric'});
+  const trendKey = `<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted,var(--muted))"><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" style="stroke:var(--text-main,#1e293b)" stroke-width="2.4" stroke-linecap="round"/></svg>Trend</span>`;
+  const head = `<div class="card" style="margin-top:12px"><div class="card-head" style="background:#EFF6FF"><span class="card-title" style="color:var(--blue-text)">📊 Equipment read per day · ${mn}</span>${trendKey}</div><div class="card-body" style="padding:6px 12px 10px">`;
+  if(!maxV){ host.innerHTML = head + '<div style="text-align:center;color:var(--muted);padding:14px;font-size:12px">No readings in this month yet.</div></div></div>'; return; }
+
+  const slot = 40, padL = 8, padR = 8, padT = 24, chartH = 112, padB = 22;
+  const W = padL + padR + slot * dim, H = padT + chartH + padB;
+  const yMax = Math.max(4, Math.ceil(maxV * 1.12));                   // one shared scale, so the three groups can be compared by eye
+  const yOf = v => padT + chartH - (v / yMax) * chartH;
+  const barW = 22;
+  const smooth = pts => {                                              // soft curve through the points
+    if(pts.length < 2) return '';
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for(let i = 0; i < pts.length - 1; i++){ const a = pts[i], b = pts[i+1], c = (b.x - a.x) * 0.4; d += ` C${a.x + c},${a.y} ${b.x - c},${b.y} ${b.x},${b.y}`; }
+    return d;
+  };
+
+  const charts = teams.map((t, i) => {
+    const [light, dark] = colorsOf(t, i), arr = counts[t];
+    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W, 900)}px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" style="stroke:var(--text-muted,#94a3b8)" stroke-width="1" opacity="0.6"/>`;
+    const pts = [];
+    for(let d = 1; d <= dim; d++){
+      const v = arr[d-1], cx = padL + (d - 0.5) * slot;
+      svg += `<text x="${cx}" y="${H-6}" font-size="10" text-anchor="middle" style="fill:var(--text-muted,var(--muted,#6b7280))">${d}</text>`;
+      if(!v) continue;
+      const by = yOf(v);
+      svg += `<rect x="${cx - barW/2}" y="${by}" width="${barW}" height="${padT+chartH-by}" rx="4" fill="${light}" opacity="0.88"><title>${escHtml(TEAM_NAME[t]||t)} · ${String(d).padStart(2,'0')}-${String(m+1).padStart(2,'0')}-${y}: ${v}</title></rect>`;
+      pts.push({ d, v, x: cx });
+    }
+    // trend: 3-day moving average over the days that have readings
+    const tp = pts.map((p, k) => { const w = pts.slice(Math.max(0, k-1), k + 2), avg = w.reduce((s, q) => s + q.v, 0) / w.length; return { x: p.x, y: yOf(avg) }; });
+    if(tp.length >= 2){ const dpath = smooth(tp);
+      svg += `<path d="${dpath}" fill="none" style="stroke:var(--bg-card,#fff)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/><path d="${dpath}" fill="none" style="stroke:var(--text-main,#1e293b)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`; }
+    pts.forEach(p => { svg += `<text x="${p.x}" y="${yOf(p.v) - 6}" font-size="10.5" text-anchor="middle" font-weight="700" style="fill:var(--text-main,#111827);paint-order:stroke;stroke:var(--bg-card,#fff);stroke-width:3px;stroke-linejoin:round" pointer-events="none">${p.v}</text>`; });
+    svg += '</svg>';
+    return `<div style="margin-top:10px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin:0 0 2px 2px;color:var(--text-main,inherit)"><span style="width:12px;height:12px;border-radius:4px;background:${light};display:inline-block"></span>${escHtml(TEAM_NAME[t]||t)}</div><div style="overflow-x:auto">${svg}</div></div>`;
+  }).join('');
+  host.innerHTML = head + charts + '</div></div>';
 }
 
 function dsRenderTotalAllGroups(){

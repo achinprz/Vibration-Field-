@@ -43,7 +43,7 @@ if ('serviceWorker' in navigator) {
 <link rel="stylesheet" href="css/responsive.css?v=20260922">
 <link rel="stylesheet" href="css/schedule-offline.css?v=20261018">
 <link rel="stylesheet" href="css/entry-guardrails.css?v=20261026">
-<link rel="stylesheet" href="css/equipment-health.css?v=20261027">
+<link rel="stylesheet" href="css/equipment-health.css?v=20261112">
 <link rel="stylesheet" href="css/not-running.css?v=20261028">
 <link rel="stylesheet" href="css/admin-2fa.css?v=20261105">
 <link rel="stylesheet" href="css/password-management.css?v=20261101">
@@ -437,9 +437,10 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="card-body" style="padding:8px 12px">
       <div id="ds-perf-total"></div>
-      
+
     </div>
   </div>
+<div id="ds-perf-daily" style="display:none"></div>
       </div>
       <div class="dsv-pane" data-dsv="cmp">
   <div class="card">
@@ -815,8 +816,8 @@ if ('serviceWorker' in navigator) {
 <script src="js/entry/save-session.js?v=20261026"></script>
 <script src="js/history/edit-window.js?v=20261105"></script>
 <script src="js/history/history.js?v=20261105"></script>
-<script src="js/data/equipment-health.js?v=20261031"></script>
-<script src="js/history/trend.js?v=20261031"></script>
+<script src="js/data/equipment-health.js?v=20261112"></script>
+<script src="js/history/trend.js?v=20261112"></script>
 <script src="js/history/export-history.js?v=20261105"></script>
 <script src="js/reports/dashboard-pdf.js?v=20261105"></script>
 <script src="js/auth/idle-logout.js?v=20261105"></script>
@@ -835,7 +836,7 @@ if ('serviceWorker' in navigator) {
 <script src="js/schedule/schedule-data.js?v=20260928b"></script>
 <script src="js/schedule/daily-schedule.js?v=20261031"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
-<script src="js/schedule/monthly-performance.js?v=20260922"></script>
+<script src="js/schedule/monthly-performance.js?v=20261111"></script>
 <script src="js/core/tab-refresh.js?v=20261018"></script>
 <script src="js/export/sql-export.js?v=20260929"></script>
 <script src="js/export/xlsm-template-data.js?v=20261101"></script>

@@ -1,6 +1,19 @@
 /* Equipment Health Index — badge + "Worst Health" popup */
-.ehi-badge { display: inline-block; font-weight: 800; font-size: 12px; line-height: 1; padding: 5px 10px; border-radius: 999px; letter-spacing: .2px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.25); vertical-align: middle; }
-.ehi-badge.ehi-big { font-size: 14px; padding: 6px 13px; margin-left: 8px; }
+/* Pill in the office dashboard's style: outlined, tinted, soft glow. Colours follow this app's own bands (80 / 60 / 40). */
+.ehi-badge { display: inline-flex; align-items: center; font-weight: 800; font-size: 12px; line-height: 1.2; padding: 3px 10px; border-radius: 12px; white-space: nowrap; vertical-align: middle;
+  color: var(--ehi-c); background: var(--ehi-bg); border: 1px solid var(--ehi-bd); box-shadow: 0 0 8px var(--ehi-bg); }
+.ehi-badge.ehi-big { font-size: 12.5px; margin-left: 8px; }
+.ehi-b-healthy  { --ehi-c: #3fb950; --ehi-bg: rgba(63,185,80,.12);   --ehi-bd: rgba(63,185,80,.3); }
+.ehi-b-watch    { --ehi-c: #d29922; --ehi-bg: rgba(210,153,34,.12);  --ehi-bd: rgba(210,153,34,.3); }
+.ehi-b-poor     { --ehi-c: #f0883e; --ehi-bg: rgba(240,136,62,.12);  --ehi-bd: rgba(240,136,62,.3); }
+.ehi-b-critical { --ehi-c: #f85149; --ehi-bg: rgba(248,81,73,.12);   --ehi-bd: rgba(248,81,73,.3); }
+.ehi-b-none     { --ehi-c: #8b949e; --ehi-bg: rgba(139,148,158,.12); --ehi-bd: rgba(139,148,158,.3); }
+/* on the light theme's white Worst Health list the same colours need darker text to stay readable (the trend header is always dark) */
+:root.theme-light .ehi-modal .ehi-b-healthy  { --ehi-c: #15803d; }
+:root.theme-light .ehi-modal .ehi-b-watch    { --ehi-c: #a16207; }
+:root.theme-light .ehi-modal .ehi-b-poor     { --ehi-c: #c2410c; }
+:root.theme-light .ehi-modal .ehi-b-critical { --ehi-c: #b91c1c; }
+:root.theme-light .ehi-modal .ehi-b-none     { --ehi-c: #4b5563; }
 
 .ehi-modal-bg { display: none; position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 14px; }
 .ehi-modal-bg.open { display: flex; }
