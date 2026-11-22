@@ -83,7 +83,8 @@ function loadData() {
     fetchVibeSchedule(),
     _fetchAllFromGS(),
     (typeof fetchAppSettings === 'function') ? fetchAppSettings() : null,
-    (typeof fetchStatusLog === 'function') ? fetchStatusLog() : null
+    (typeof fetchStatusLog === 'function') ? fetchStatusLog() : null,
+    (typeof loadHolidays === 'function') ? loadHolidays() : null
   ])
   .then(async ([masterOk, recsOk, fetchResult]) => {
     populateFilters();

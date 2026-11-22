@@ -95,6 +95,7 @@ function dsRenderPerf(){
   const team = dsCurrentTeam(); if(!team) return;
   try { dsRenderTotalAllGroups(); } catch(e){ console.error('dsRenderTotalAllGroups failed:', e); const el=document.getElementById('ds-perf-total'); if(el) el.innerHTML = '<div style="color:var(--red);font-size:12px">Could not load totals — '+(e&&e.message?e.message:'error')+'</div>'; }
   try { dsRenderDailyBars(); } catch(e){ console.error('dsRenderDailyBars failed:', e); }
+  try { if(typeof dsRenderShiftSummary === 'function') dsRenderShiftSummary(); } catch(e){ console.error('dsRenderShiftSummary failed:', e); }
   try { dsRenderCompare(); } catch(e){ console.error('dsRenderCompare failed:', e); }
   try { dsRenderCompareMonthwise(); } catch(e){ console.error('dsRenderCompareMonthwise failed:', e); }
 }
@@ -122,8 +123,20 @@ function dsRenderDailyBars(){
   const counts = {}; let maxV = 0;
   teams.forEach(t => { counts[t] = perDay[t].map(s => s.size); counts[t].forEach(v => { if(v > maxV) maxV = v; }); });
   const mn = new Date(y, m, 1).toLocaleDateString(undefined, {month:'long', year:'numeric'});
-  const trendKey = `<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted,var(--muted))"><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" style="stroke:var(--text-main,#1e293b)" stroke-width="2.4" stroke-linecap="round"/></svg>Trend</span>`;
-  const head = `<div class="card" style="margin-top:12px"><div class="card-head" style="background:#EFF6FF"><span class="card-title" style="color:var(--blue-text)">📊 Equipment read per day · ${mn}</span>${trendKey}</div><div class="card-body" style="padding:6px 12px 10px">`;
+  // Sunday / holiday → grey bar; reserve day (the working days after the 23rd) → navy bar; other days keep the group colour
+  const pad2 = n => String(n).padStart(2, '0');
+  const dsOf = d => `${y}-${pad2(m+1)}-${pad2(d)}`;
+  const reserveSet = new Set(); try { if(typeof dyReserveDays === 'function') dyReserveDays(y, m).forEach(dt => reserveSet.add(dsFmt(dt))); } catch(e){}
+  const holName = ds => (typeof holidayName === 'function') ? holidayName(ds) : '';
+  const dayKind = d => { const ds = dsOf(d), isSun = new Date(y, m, d).getDay() === 0, hn = holName(ds);
+    return isSun ? { k:'off', why:'Sunday' } : hn ? { k:'off', why: 'Holiday — ' + hn } : reserveSet.has(ds) ? { k:'res', why:'Reserve day' } : { k:'work', why:'' }; };
+  const GREY = '#9ca3af', NAVY = '#1e3a8a';
+  const legend = `<span style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text-muted,var(--muted))">
+      <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:10px;border-radius:3px;background:${GREY};display:inline-block"></i>Sunday / holiday</span>
+      <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:10px;border-radius:3px;background:${NAVY};display:inline-block"></i>Reserve day</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" style="stroke:var(--text-main,#1e293b)" stroke-width="2.4" stroke-linecap="round"/></svg>Line joins each day's bar top</span></span>`;
+  const holBtn = `<button class="btn btn-sm" onclick="holidayEditorToggle()" title="Add or remove holidays (grey bars)">🗓 Holidays</button>`;
+  const head = `<div class="card" style="margin-top:12px"><div class="card-head" style="background:#EFF6FF;flex-wrap:wrap;gap:6px"><span class="card-title" style="color:var(--blue-text)">📊 Equipment read per day · ${mn}</span>${legend}${holBtn}</div>${typeof holidayEditorHtml === 'function' ? holidayEditorHtml(y, m) : ''}<div class="card-body" style="padding:6px 12px 10px">`;
   if(!maxV){ host.innerHTML = head + '<div style="text-align:center;color:var(--muted);padding:14px;font-size:12px">No readings in this month yet.</div></div></div>'; return; }
 
   const slot = 40, padL = 8, padR = 8, padT = 24, chartH = 112, padB = 22;
@@ -144,15 +157,16 @@ function dsRenderDailyBars(){
     svg += `<line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" style="stroke:var(--text-muted,#94a3b8)" stroke-width="1" opacity="0.6"/>`;
     const pts = [];
     for(let d = 1; d <= dim; d++){
-      const v = arr[d-1], cx = padL + (d - 0.5) * slot;
-      svg += `<text x="${cx}" y="${H-6}" font-size="10" text-anchor="middle" style="fill:var(--text-muted,var(--muted,#6b7280))">${d}</text>`;
+      const v = arr[d-1], cx = padL + (d - 0.5) * slot, kind = dayKind(d);
+      if(kind.k === 'off') svg += `<rect x="${cx - slot/2 + 1}" y="${padT}" width="${slot - 2}" height="${chartH}" fill="${GREY}" opacity="0.13"><title>${kind.why}</title></rect>`;
+      svg += `<text x="${cx}" y="${H-6}" font-size="10" text-anchor="middle" style="fill:${kind.k === 'off' ? GREY : kind.k === 'res' ? NAVY : 'var(--text-muted,var(--muted,#6b7280))'}" ${kind.k !== 'work' ? 'font-weight="700"' : ''}><title>${kind.why || ''}</title>${d}</text>`;
       if(!v) continue;
-      const by = yOf(v);
-      svg += `<rect x="${cx - barW/2}" y="${by}" width="${barW}" height="${padT+chartH-by}" rx="4" fill="${light}" opacity="0.88"><title>${escHtml(TEAM_NAME[t]||t)} · ${String(d).padStart(2,'0')}-${String(m+1).padStart(2,'0')}-${y}: ${v}</title></rect>`;
+      const by = yOf(v), fill = kind.k === 'off' ? GREY : kind.k === 'res' ? NAVY : light;
+      svg += `<rect x="${cx - barW/2}" y="${by}" width="${barW}" height="${padT+chartH-by}" rx="4" fill="${fill}" opacity="0.88"><title>${escHtml(TEAM_NAME[t]||t)} · ${pad2(d)}-${pad2(m+1)}-${y}: ${v}${kind.why ? ' (' + kind.why + ')' : ''}</title></rect>`;
       pts.push({ d, v, x: cx });
     }
-    // trend: 3-day moving average over the days that have readings
-    const tp = pts.map((p, k) => { const w = pts.slice(Math.max(0, k-1), k + 2), avg = w.reduce((s, q) => s + q.v, 0) / w.length; return { x: p.x, y: yOf(avg) }; });
+    // trend line: passes exactly through the top of every bar (days without a bar are bridged)
+    const tp = pts.map(p => ({ x: p.x, y: yOf(p.v) }));
     if(tp.length >= 2){ const dpath = smooth(tp);
       svg += `<path d="${dpath}" fill="none" style="stroke:var(--bg-card,#fff)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/><path d="${dpath}" fill="none" style="stroke:var(--text-main,#1e293b)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`; }
     pts.forEach(p => { svg += `<text x="${p.x}" y="${yOf(p.v) - 6}" font-size="10.5" text-anchor="middle" font-weight="700" style="fill:var(--text-main,#111827);paint-order:stroke;stroke:var(--bg-card,#fff);stroke-width:3px;stroke-linejoin:round" pointer-events="none">${p.v}</text>`; });
