@@ -629,6 +629,7 @@ if ('serviceWorker' in navigator) {
       <button class="ap-nav-btn" data-ap="supabase"  onclick="apSelect('supabase')"><span class="ap-ic">⚡</span><span>Supabase</span></button>
       <button class="ap-nav-btn" data-ap="schedule"  onclick="apSelect('schedule')"><span class="ap-ic">📅</span><span>Schedule upload</span></button>
       <button class="ap-nav-btn" data-ap="retention" onclick="apSelect('retention')"><span class="ap-ic">🗑️</span><span>Data retention</span></button>
+      <button class="ap-nav-btn" data-ap="perf"      onclick="apSelect('perf')"><span class="ap-ic">⏱</span><span>Performance &amp; storage</span></button>
       <button class="ap-nav-btn" data-ap="theme"     onclick="apSelect('theme')"><span class="ap-ic">🌓</span><span>Theme</span></button>
     </nav>
     <div class="ap-content">
@@ -764,6 +765,8 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       </div><!-- /pane retention -->
+      <div class="ap-pane" data-ap="perf"><div class="ap-title">Performance &amp; storage</div><div class="ap-desc">How long each login takes to load and draw the data, and how full the Supabase database is.</div><div id="perf-body"></div></div>
+
       <div class="ap-pane" data-ap="theme">
         <div class="ap-title">Theme</div>
         <div class="ap-desc">Switch between dark and light mode on this device.</div>
@@ -805,7 +808,7 @@ if ('serviceWorker' in navigator) {
 <script src="js/data/severity.js?v=20260925"></script>
 <script src="js/data/html-utils.js?v=20260922"></script>
 <script src="js/data/recommendations.js?v=20260927c"></script>
-<script src="js/data/data-loader.js?v=20261122"></script>
+<script src="js/data/data-loader.js?v=20261124"></script>
 <script src="js/data/status-log.js?v=20261028"></script>
 <script src="js/core/tabs-filters.js?v=20261018"></script>
 <script src="js/data/reading-lookup.js?v=20260922"></script>
@@ -823,19 +826,20 @@ if ('serviceWorker' in navigator) {
 <script src="js/reports/dashboard-pdf.js?v=20261105"></script>
 <script src="js/auth/idle-logout.js?v=20261105"></script>
 <script src="js/auth/admin-2fa.js?v=20261105"></script>
-<script src="js/auth/auth.js?v=20261105"></script>
+<script src="js/auth/auth.js?v=20261124"></script>
 <script src="js/admin/data-retention.js?v=20260922"></script>
-<script src="js/admin/admin-panel.js?v=20261101"></script>
+<script src="js/admin/admin-panel.js?v=20261124"></script>
+<script src="js/admin/perf-monitor.js?v=20261127"></script>
 <script src="js/history/edit-report.js?v=20261105"></script>
 <script src="js/history/session-actions.js?v=20261105"></script>
 <script src="js/bulk/template-builder.js?v=20260927c"></script>
 <script src="js/bulk/bulk-upload.js?v=20260922"></script>
 <script src="js/reports/user-report.js?v=20260922"></script>
-<script src="js/share/whatsapp.js?v=20261122"></script>
+<script src="js/share/whatsapp.js?v=20261124"></script>
 <script src="js/share/shift-summary.js?v=20261123"></script>
 <script src="js/exceptions/exceptions.js?v=20261030"></script>
 <script src="js/exceptions/pending-equipment.js?v=20260922"></script>
-<script src="js/schedule/schedule-data.js?v=20260928b"></script>
+<script src="js/schedule/schedule-data.js?v=20261124"></script>
 <script src="js/schedule/daily-schedule.js?v=20261031"></script>
 <script src="js/schedule/pending-schedule.js?v=20260922"></script>
 <script src="js/schedule/holidays.js?v=20261122"></script>

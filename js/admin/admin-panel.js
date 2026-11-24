@@ -11,6 +11,7 @@ function apSelect(key) {
   try { localStorage.setItem(AP_TAB_KEY, key); } catch(e) {}
   if (key === 'recs' && typeof rmOpen === 'function') rmOpen();
   if (key === 'passwords' && typeof pwmRender === 'function') pwmRender();
+  if (key === 'perf' && typeof perfRender === 'function') perfRender();
   if (key === 'theme') syncThemeToggleUI();
   const c = document.querySelector('#admin-panel-modal .ap-content'); if (c) c.scrollTop = 0;
 }

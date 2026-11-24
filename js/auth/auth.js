@@ -123,6 +123,7 @@ async function doLogin() {
   if (!uname || !pass) { errEl.textContent = '❌ Please enter username and password.'; errEl.classList.add('show'); return; }
   if (btnEl) { btnEl.textContent = '🔄 Verifying...'; btnEl.disabled = true; }
   errEl.classList.remove('show');
+  try { PerfMon.loginStart(); } catch (e) {}   // js/admin/perf-monitor.js: times login → data on screen
 
   try {
     // Query Supabase users table for matching credentials
@@ -163,6 +164,7 @@ async function doLogin() {
           if (tf.msg) { errEl.textContent = tf.msg; errEl.classList.add('show'); }
           return;
         }
+        try { PerfMon.loginStart(); } catch (e) {}   // the time spent typing the authenticator code is not load time
       }
       AUTH = {
         loggedIn: true,

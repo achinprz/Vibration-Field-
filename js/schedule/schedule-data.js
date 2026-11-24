@@ -151,22 +151,7 @@ async function fetchVibeSchedule() {
   };
   try {
     // Paginated fetch — Supabase caps at 1000 rows per request
-    let allData = [];
-    const PAGE = 1000;
-    let from = 0;
-    while (true) {
-      const { data, error } = await _supabase
-        .from('vibe_schedule')
-        .select('*')
-        .order('team')
-        .order('day_number')
-        .range(from, from + PAGE - 1);
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      allData = allData.concat(data);
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
+    const allData = await _fetchAllPages('vibe_schedule', [['team', true], ['day_number', true]], false);   // pages fetched in parallel — see data-loader.js
     if (allData.length === 0) {
       diag('Supabase vibe_schedule table returned 0 rows. Please add schedule data.', 'err');
       return false;

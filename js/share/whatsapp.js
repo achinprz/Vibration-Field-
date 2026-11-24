@@ -127,10 +127,6 @@ function buildSessionWAMessage(date, equipment, reportId) {
   msg += `${divider}\n`;
   msg += `Equipment  : ${equipment}\n`;
   if (eqObj.unit || eqObj.area) msg += `Unit/Area  : ${[eqObj.unit, eqObj.area].filter(Boolean).join(' / ')}\n`;
-  // Speed: the RPM saved with the reading, else the equipment master's (line hidden when neither has one)
-  //const _rpmRow = rows.map(r => parseFloat(r.rpm)).find(v => isFinite(v) && v > 0);
-  //const _rpm = _rpmRow || (isFinite(parseFloat(eqObj.rpm)) && parseFloat(eqObj.rpm) > 0 ? parseFloat(eqObj.rpm) : 0);
-  //if (_rpm) msg += `Speed      : ${Number.isInteger(_rpm) ? _rpm : _rpm.toFixed(1)} RPM\n`;
   msg += `Date & Time: ${dateStr} | ${timeStr}\n`;
   msg += `Inspector  : ${inspector}\n`;
   msg += `Status     : ${osLabel[os] || os}\n`;
